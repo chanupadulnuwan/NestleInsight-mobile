@@ -53,6 +53,7 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dashboardController.loadCatalog();
       _dashboardController.loadOrders();
       _dashboardController.loadActivities();
     });
@@ -291,7 +292,22 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
                 );
 
                 if (shouldReplace == true) {
-                  _dashboardController.replaceCartWithOrder(order);
+                  final result = _dashboardController.replaceCartWithOrder(order);
+                  if (result.addedCount == 0 &&
+                      result.unavailableProductNames.isNotEmpty) {
+                    _showMessage(
+                      'Previous order items are currently unavailable.',
+                    );
+                    return;
+                  }
+
+                  if (result.hasUnavailableProducts) {
+                    _showMessage(
+                      'Added available items only. Currently unavailable: ${result.unavailableProductNames.join(', ')}',
+                    );
+                    return;
+                  }
+
                   _showMessage('Cart replaced with the previous order.');
                 }
               },
@@ -349,6 +365,8 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
       _dashboardController.loadOrders();
     } else if (index == 2) {
       _dashboardController.loadActivities();
+    } else if (index == 0) {
+      _dashboardController.loadCatalog();
     }
   }
 

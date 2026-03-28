@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/orders/domain/shop_cart_item.dart';
 
 class OrderSummarySheet extends StatelessWidget {
@@ -96,21 +97,9 @@ class OrderSummarySheet extends StatelessWidget {
                                 height: isTablet ? 76 : 64,
                                 color: Colors.white,
                                 padding: const EdgeInsets.all(8),
-                                child: Image.asset(
-                                  item.product.imageAssetPath,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, _, _) => Center(
-                                    child: Text(
-                                      item.product.badgeLabel,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                            color: AppTheme.primaryBrownDark,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
+                                child: ProductImageBox(
+                                  imageSource: item.product.imageUrl,
+                                  fallbackLabel: item.product.badgeLabel,
                                 ),
                               ),
                             ),
@@ -131,7 +120,7 @@ class OrderSummarySheet extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '${_formatCurrency(item.product.unitPrice)} x ${item.quantity}',
+                                    '${_formatCurrency(item.product.orderPrice)} x ${item.quantity}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium

@@ -64,6 +64,9 @@ class AuthService {
 
       if (result.accessToken != null && result.accessToken!.isNotEmpty) {
         await _tokenStorageService.saveAccessToken(result.accessToken!);
+        if (result.user != null) {
+          await _tokenStorageService.saveUserData(result.user!);
+        }
       }
 
       return result;
@@ -88,6 +91,7 @@ class AuthService {
     required String confirmPassword,
     required PublicUserRole role,
     String? employeeId,
+    String? warehouseName,
     String? shopName,
     String? address,
     double? latitude,
@@ -103,6 +107,7 @@ class AuthService {
       confirmPassword: confirmPassword,
       role: role,
       employeeId: employeeId,
+      warehouseName: warehouseName,
       shopName: shopName,
       address: address,
       latitude: latitude,
@@ -175,12 +180,14 @@ class AuthService {
     required String confirmPassword,
     required PublicUserRole role,
     String? employeeId,
+    String? warehouseName,
     String? shopName,
     String? address,
     double? latitude,
     double? longitude,
   }) {
     final normalizedEmployeeId = employeeId?.trim();
+    final normalizedWarehouseName = warehouseName?.trim();
     final normalizedShopName = shopName?.trim();
     final normalizedAddress = address?.trim();
 
@@ -197,6 +204,9 @@ class AuthService {
       ...(normalizedEmployeeId == null || normalizedEmployeeId.isEmpty
           ? const <String, dynamic>{}
           : {'employeeId': normalizedEmployeeId}),
+      ...(normalizedWarehouseName == null || normalizedWarehouseName.isEmpty
+          ? const <String, dynamic>{}
+          : {'warehouseName': normalizedWarehouseName}),
       ...(normalizedShopName == null || normalizedShopName.isEmpty
           ? const <String, dynamic>{}
           : {'shopName': normalizedShopName}),

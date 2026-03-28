@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/services/location_picker_service.dart';
+import 'package:mobile/core/services/territory_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/form_validators.dart';
 import 'package:mobile/features/auth/data/services/auth_service.dart';
@@ -27,12 +28,14 @@ class _SignupPageState extends State<SignupPage> {
   final _confirmPasswordController = TextEditingController();
   final _employeeIdController = TextEditingController();
   final _territoryController = TextEditingController();
+  final _warehouseController = TextEditingController();
   final _shopNameController = TextEditingController();
   final _shopAddressController = TextEditingController();
   final _shopLocationController = TextEditingController();
 
   final _authService = AuthService();
   final _locationPickerService = LocationPickerService();
+  final _territoryService = TerritoryService();
 
   PublicUserRole? _selectedRole;
   LocationSelection? _selectedLocation;
@@ -54,6 +57,7 @@ class _SignupPageState extends State<SignupPage> {
     _confirmPasswordController.dispose();
     _employeeIdController.dispose();
     _territoryController.dispose();
+    _warehouseController.dispose();
     _shopNameController.dispose();
     _shopAddressController.dispose();
     _shopLocationController.dispose();
@@ -64,6 +68,7 @@ class _SignupPageState extends State<SignupPage> {
     _selectedLocation = null;
     _employeeIdController.clear();
     _territoryController.clear();
+    _warehouseController.clear();
     _shopNameController.clear();
     _shopAddressController.clear();
     _shopLocationController.clear();
@@ -84,7 +89,61 @@ class _SignupPageState extends State<SignupPage> {
       _shopLocationController.text = selectedLocation.summary;
       _shopAddressController.text = selectedLocation.addressLine;
       _territoryController.clear();
+      _warehouseController.clear();
     });
+
+    try {
+      final assignment = await _territoryService.resolveAssignment(
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (assignment != null) {
+        setState(() {
+          _territoryController.text = assignment.territoryName;
+          _warehouseController.text = assignment.warehouseName;
+        });
+      }
+    } on TerritoryServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(error.message);
+    }
+  }
+
+  Future<void> _resolveEmployeeWarehouse() async {
+    final warehouseName = _warehouseController.text.trim();
+    if (warehouseName.isEmpty || !_isEmployeeRole) {
+      _territoryController.clear();
+      return;
+    }
+
+    try {
+      final assignment = await _territoryService.lookupWarehouse(warehouseName);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _warehouseController.text = assignment.warehouseName;
+        _territoryController.text = assignment.territoryName;
+      });
+    } on TerritoryServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _territoryController.clear();
+      });
+      _showMessage(error.message);
+    }
   }
 
   Future<void> _handleRegister() async {
@@ -100,6 +159,18 @@ class _SignupPageState extends State<SignupPage> {
 
     if (_isShopOwner && _selectedLocation == null) {
       _showMessage('Pick the shop location from the map to continue.');
+      return;
+    }
+
+    if (_isEmployeeRole && _warehouseController.text.trim().isEmpty) {
+      _showMessage('Enter the registered warehouse name to continue.');
+      return;
+    }
+
+    if (_isEmployeeRole && _territoryController.text.trim().isEmpty) {
+      _showMessage(
+        'Use a registered warehouse name so the territory can be matched automatically.',
+      );
       return;
     }
 
@@ -122,6 +193,11 @@ class _SignupPageState extends State<SignupPage> {
         employeeId: _employeeIdController.text.trim().isEmpty
             ? null
             : _employeeIdController.text.trim(),
+        warehouseName: _isEmployeeRole
+            ? _warehouseController.text.trim()
+            : _warehouseController.text.trim().isEmpty
+                ? null
+                : _warehouseController.text.trim(),
         shopName: _isShopOwner ? _shopNameController.text.trim() : null,
         address: _isShopOwner ? _shopAddressController.text.trim() : null,
         latitude: _selectedLocation?.latitude,
@@ -240,12 +316,38 @@ class _SignupPageState extends State<SignupPage> {
         ),
         const SizedBox(height: 16),
         CustomTextField(
+          labelText: 'Warehouse name',
+          hintText: 'Enter the registered warehouse name',
+          controller: _warehouseController,
+          prefixIcon: const Icon(Icons.inventory_2_outlined),
+          textInputAction: TextInputAction.next,
+          helperText: 'The territory will auto-fill after the warehouse name matches.',
+          validator: (value) {
+            if (!_isEmployeeRole) {
+              return null;
+            }
+
+            return FormValidators.required(value, fieldName: 'Warehouse name');
+          },
+          onChanged: (_) {
+            _territoryController.clear();
+          },
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _resolveEmployeeWarehouse,
+            child: const Text('Check warehouse'),
+          ),
+        ),
+        CustomTextField(
           labelText: 'Territory',
-          hintText: 'Will be connected after territory master data is ready',
+          hintText: 'Auto-filled from the registered warehouse',
           controller: _territoryController,
           prefixIcon: const Icon(Icons.map_outlined),
           helperText:
-              'Optional for now and not required to create the account.',
+              'Read-only. It fills automatically when the warehouse name matches.',
           readOnly: true,
         ),
       ],
@@ -308,11 +410,19 @@ class _SignupPageState extends State<SignupPage> {
         const SizedBox(height: 16),
         CustomTextField(
           labelText: 'Territory',
-          hintText: 'Will be connected after territory master data is ready',
+          hintText: 'Auto-filled from the selected location',
           controller: _territoryController,
           prefixIcon: const Icon(Icons.route_outlined),
-          helperText:
-              'Optional for now and not required to create the account.',
+          helperText: 'Assigned from the nearest territory.',
+          readOnly: true,
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          labelText: 'Warehouse',
+          hintText: 'Auto-filled from the selected location',
+          controller: _warehouseController,
+          prefixIcon: const Icon(Icons.inventory_2_outlined),
+          helperText: 'Assigned from the nearest warehouse.',
           readOnly: true,
         ),
         const SizedBox(height: 16),

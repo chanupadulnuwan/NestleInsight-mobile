@@ -246,7 +246,7 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '${item.quantity} x ${_formatCurrency(item.unitPrice)}',
+                                        '${item.quantity} x ${_formatCurrency(item.casePrice)}',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
@@ -720,12 +720,37 @@ String _friendlyStatus(String status) {
 
 String _statusNoteForOrder(ShopOrder order) {
   final normalizedStatus = order.status.trim().toUpperCase();
+  final customerNote = order.customerNote?.trim();
+
+  if (customerNote != null &&
+      customerNote.isNotEmpty &&
+      <String>{
+        'PROCEED',
+        'APPROVED',
+        'ASSIGNED',
+        'DELAYED',
+        'CANCELLED',
+        'COMPLETE',
+        'COMPLETED',
+      }.contains(normalizedStatus)) {
+    return customerNote;
+  }
 
   switch (normalizedStatus) {
-    case 'APPROVED':
-      return 'Your order is approved and will be processed soon.';
-    case 'PROCESS':
     case 'PROCEED':
+    case 'APPROVED':
+      return order.deliveryDueAt != null
+          ? 'Your order is approved and is now proceeding for delivery before ${_formatDate(order.deliveryDueAt!)}.'
+          : 'Your order is approved and is now proceeding for delivery.';
+    case 'ASSIGNED':
+      return 'Your order has been assigned to a distributor and is being prepared for delivery.';
+    case 'DELAYED':
+      return order.delayReason != null && order.delayReason!.trim().isNotEmpty
+          ? 'Delivery delayed: ${order.delayReason!}'
+          : 'Your order has been delayed. Please check again later for the latest delivery update.';
+    case 'CANCELLED':
+      return 'Your order could not be processed. Please review the latest activity update for the reason.';
+    case 'PROCESS':
     case 'PROCESSING':
     case 'PROCESSED':
       return 'Order will be delivered within 1-2 business days.';
@@ -738,7 +763,9 @@ String _statusNoteForOrder(ShopOrder order) {
       return 'Order completed on ${_formatDate(order.placedAt)}.';
     case 'PLACED':
     default:
-      return 'Your order will be processed soon.';
+      return order.isOverdue
+          ? 'Your order has passed the normal delivery window and is waiting for an update.'
+          : 'Your order will be processed soon.';
   }
 }
 

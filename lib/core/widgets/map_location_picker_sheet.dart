@@ -1,6 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mobile/core/services/location_picker_service.dart';
@@ -17,9 +17,16 @@ class MapLocationPickerSheet extends StatefulWidget {
 
 class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
   static const LatLng _fallbackLocation = LatLng(6.9271, 79.8612);
+  static const _nominatimBase = 'https://nominatim.openstreetmap.org';
+  static const _userAgent = 'NestleInsightApp/1.0';
 
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+    headers: {'User-Agent': _userAgent, 'Accept-Language': 'en'},
+  ));
 
   LatLng? _selectedPoint;
   String _summary = 'Selected location';
@@ -38,6 +45,7 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
   @override
   void dispose() {
     _searchController.dispose();
+    _dio.close();
     super.dispose();
   }
 
@@ -65,9 +73,7 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
 
     final resolvedInitialPoint = await _resolveInitialPoint();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
       _selectedPoint = resolvedInitialPoint;
@@ -123,9 +129,7 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
 
     final point = await _resolveInitialPoint();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
       _selectedPoint = point;
@@ -150,23 +154,40 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
     });
 
     try {
-      final matches = await locationFromAddress(query);
-      if (matches.isEmpty) {
+      final response = await _dio.get<List<dynamic>>(
+        '$_nominatimBase/search',
+        queryParameters: {'q': query, 'format': 'json', 'limit': '1'},
+      );
+
+      final results = response.data;
+      if (results == null || results.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _statusMessage = 'No matching location was found for "$query".';
         });
         return;
       }
 
-      final firstMatch = matches.first;
-      final point = LatLng(firstMatch.latitude, firstMatch.longitude);
+      final first = results.first as Map<String, dynamic>;
+      final lat = double.tryParse(first['lat']?.toString() ?? '');
+      final lng = double.tryParse(first['lon']?.toString() ?? '');
 
-      await _resolveAddressForPoint(point, moveMap: true);
-    } catch (_) {
-      if (!mounted) {
+      if (lat == null || lng == null) {
+        if (!mounted) return;
+        setState(() {
+          _statusMessage = 'Unexpected response from location search.';
+        });
         return;
       }
 
+      await _resolveAddressForPoint(LatLng(lat, lng), moveMap: true);
+    } on DioException {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Location search failed. Check your internet connection and try again.';
+      });
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _statusMessage = 'Location search failed. Try a more specific address.';
       });
@@ -194,27 +215,43 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
     }
 
     try {
-      final placemarks = await placemarkFromCoordinates(
-        point.latitude,
-        point.longitude,
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_nominatimBase/reverse',
+        queryParameters: {
+          'lat': point.latitude.toString(),
+          'lon': point.longitude.toString(),
+          'format': 'json',
+        },
       );
-      final placemark = placemarks.isNotEmpty ? placemarks.first : null;
 
-      final resolvedAddress = _buildAddressLine(placemark, point);
-      final resolvedSummary = _buildSummary(placemark, point);
-
-      if (!mounted) {
-        return;
+      final data = response.data;
+      if (data == null || data['error'] != null) {
+        throw Exception('No address data');
       }
+
+      final address = data['address'] as Map<String, dynamic>?;
+      final displayName = data['display_name'] as String? ?? '';
+
+      final suburb = address?['suburb'] as String?;
+      final city = (address?['city'] ?? address?['town'] ?? address?['village']) as String?;
+      final state = address?['state'] as String?;
+
+      final summaryParts = [suburb, city, state]
+          .whereType<String>()
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+
+      final summary =
+          summaryParts.isEmpty ? _formatCoordinates(point) : summaryParts.join(', ');
+
+      if (!mounted) return;
 
       setState(() {
-        _addressLine = resolvedAddress;
-        _summary = resolvedSummary;
+        _addressLine = displayName.isEmpty ? _formatCoordinates(point) : displayName;
+        _summary = summary;
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _addressLine = _formatCoordinates(point);
@@ -233,41 +270,6 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
 
   void _moveToPoint(LatLng point, {double zoom = 16}) {
     _mapController.move(point, zoom);
-  }
-
-  String _buildAddressLine(Placemark? placemark, LatLng point) {
-    if (placemark == null) {
-      return _formatCoordinates(point);
-    }
-
-    final parts = <String?>[
-      placemark.street,
-      placemark.subLocality,
-      placemark.locality,
-      placemark.administrativeArea,
-      placemark.postalCode,
-      placemark.country,
-    ].whereType<String>().where((value) => value.trim().isNotEmpty).toList();
-
-    if (parts.isEmpty) {
-      return _formatCoordinates(point);
-    }
-
-    return parts.join(', ');
-  }
-
-  String _buildSummary(Placemark? placemark, LatLng point) {
-    final summaryParts = <String?>[
-      placemark?.subLocality,
-      placemark?.locality,
-      placemark?.administrativeArea,
-    ].whereType<String>().where((value) => value.trim().isNotEmpty).toList();
-
-    if (summaryParts.isEmpty) {
-      return _formatCoordinates(point);
-    }
-
-    return summaryParts.join(', ');
   }
 
   String _formatCoordinates(LatLng point) {
@@ -442,8 +444,11 @@ class _MapLocationPickerSheetState extends State<MapLocationPickerSheet> {
                         children: [
                           TileLayer(
                             urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                            subdomains: const ['a', 'b', 'c', 'd'],
                             userAgentPackageName: 'com.example.mobile',
+                            maxZoom: 20,
+                            tileDisplay: const TileDisplay.fadeIn(),
                           ),
                           MarkerLayer(
                             markers: [

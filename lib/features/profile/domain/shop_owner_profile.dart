@@ -8,6 +8,7 @@ class ShopOwnerProfile {
     required this.shopName,
     required this.address,
     this.territory,
+    this.warehouse,
   });
 
   factory ShopOwnerProfile.fromJson(Map<String, dynamic>? json) {
@@ -24,7 +25,10 @@ class ShopOwnerProfile {
       email: readValue('email'),
       shopName: readValue('shopName'),
       address: readValue('address'),
-      territory: _readNullableValue(json?['territory']),
+      territory:
+          _readNullableValue(json?['territoryName']) ??
+          _readNullableValue(json?['territory']),
+      warehouse: _readNullableValue(json?['warehouseName']),
     );
   }
 
@@ -36,6 +40,7 @@ class ShopOwnerProfile {
   final String shopName;
   final String address;
   final String? territory;
+  final String? warehouse;
 
   String get displayShopName => shopName.isNotEmpty
       ? shopName
@@ -77,6 +82,7 @@ class ShopOwnerProfile {
       'shopName': shopName,
       'address': address,
       'territory': territory,
+      'warehouse': warehouse,
     };
   }
 
@@ -89,6 +95,7 @@ class ShopOwnerProfile {
     String? shopName,
     String? address,
     String? territory,
+    String? warehouse,
   }) {
     return ShopOwnerProfile(
       username: username ?? this.username,
@@ -99,6 +106,7 @@ class ShopOwnerProfile {
       shopName: shopName ?? this.shopName,
       address: address ?? this.address,
       territory: territory ?? this.territory,
+      warehouse: warehouse ?? this.warehouse,
     );
   }
 

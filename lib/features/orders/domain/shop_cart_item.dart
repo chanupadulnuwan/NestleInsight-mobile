@@ -6,7 +6,7 @@ class ShopCartItem {
   final ShopCatalogProduct product;
   final int quantity;
 
-  double get lineTotal => product.unitPrice * quantity;
+  double get lineTotal => product.orderPrice * quantity;
 
   ShopCartItem copyWith({ShopCatalogProduct? product, int? quantity}) {
     return ShopCartItem(

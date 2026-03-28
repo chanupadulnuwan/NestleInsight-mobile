@@ -110,10 +110,7 @@ class OrderService {
           'items': items
               .map(
                 (item) => <String, dynamic>{
-                  'productCode': item.product.code,
-                  'productName': item.product.name,
-                  'imageAssetPath': item.product.imageAssetPath,
-                  'unitPrice': item.product.unitPrice,
+                  'productId': item.product.id,
                   'quantity': item.quantity,
                 },
               )

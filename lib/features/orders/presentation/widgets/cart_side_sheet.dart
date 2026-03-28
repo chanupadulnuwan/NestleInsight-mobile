@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/orders/domain/shop_order.dart';
@@ -126,22 +127,9 @@ class CartSideSheet extends StatelessWidget {
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(16),
                                       ),
-                                      child: Image.asset(
-                                        item.product.imageAssetPath,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, _, _) => Center(
-                                          child: Text(
-                                            item.product.badgeLabel,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.copyWith(
-                                                  color:
-                                                      AppTheme.primaryBrownDark,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
+                                      child: ProductImageBox(
+                                        imageSource: item.product.imageUrl,
+                                        fallbackLabel: item.product.badgeLabel,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -162,7 +150,7 @@ class CartSideSheet extends StatelessWidget {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            '${item.quantity} x ${_formatCurrency(item.product.unitPrice)}',
+                                            '${item.quantity} x ${_formatCurrency(item.product.orderPrice)}',
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyMedium

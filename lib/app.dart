@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/app_theme.dart';
-import 'package:mobile/features/auth/presentation/pages/login_page.dart';
+import 'package:mobile/core/widgets/auth_gate.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -11,7 +11,7 @@ class App extends StatelessWidget {
       title: 'Nestle Insight',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const LoginPage(),
+      home: const AuthGate(),
     );
   }
 }

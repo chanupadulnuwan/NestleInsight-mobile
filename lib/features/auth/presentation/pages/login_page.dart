@@ -6,6 +6,7 @@ import 'package:mobile/features/auth/presentation/pages/otp_verification_page.da
 import 'package:mobile/features/auth/presentation/pages/signup_page.dart';
 import 'package:mobile/features/auth/presentation/widgets/auth_page_shell.dart';
 import 'package:mobile/features/auth/presentation/widgets/custom_text_field.dart';
+import 'package:mobile/features/distributor/presentation/pages/distributor_home_page.dart';
 import 'package:mobile/features/home/presentation/pages/shop_owner_dashboard_page.dart';
 import 'package:mobile/features/home/presentation/pages/dummy_home_page.dart';
 
@@ -102,7 +103,9 @@ class _LoginPageState extends State<LoginPage> {
     if (role == 'SHOP_OWNER') {
       return ShopOwnerDashboardPage(user: user);
     }
-
+    if (role == 'TERRITORY_DISTRIBUTOR') {
+      return DistributorHomePage(user: user);
+    }
     return DummyHomePage(user: user);
   }
 

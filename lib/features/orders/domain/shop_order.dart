@@ -1,57 +1,44 @@
-import 'package:mobile/features/home/domain/shop_catalog_product.dart';
-import 'package:mobile/features/orders/domain/shop_cart_item.dart';
+import 'package:mobile/core/config/app_config.dart';
 
 class ShopOrderItem {
   const ShopOrderItem({
     required this.id,
-    required this.productCode,
+    required this.productId,
+    required this.sku,
     required this.productName,
-    required this.unitPrice,
+    required this.casePrice,
     required this.quantity,
     required this.lineTotal,
-    this.imageAssetPath,
+    required this.isCurrentlyAvailable,
+    this.packSize,
+    this.imageUrl,
   });
 
   factory ShopOrderItem.fromJson(Map<String, dynamic> json) {
     return ShopOrderItem(
       id: json['id'] as String? ?? '',
-      productCode: json['productCode'] as String? ?? '',
+      productId: json['productId'] as String?,
+      sku: json['sku'] as String? ?? '',
       productName: json['productName'] as String? ?? '',
-      unitPrice: _readDouble(json['unitPrice']),
+      packSize: json['packSize'] as String?,
+      imageUrl: AppConfig.resolveApiUrl(json['imageUrl'] as String?),
+      casePrice: _readDouble(json['casePrice']),
       quantity: _readInt(json['quantity']),
       lineTotal: _readDouble(json['lineTotal']),
-      imageAssetPath: json['imageAssetPath'] as String?,
+      isCurrentlyAvailable: json['isCurrentlyAvailable'] == true,
     );
   }
 
   final String id;
-  final String productCode;
+  final String? productId;
+  final String sku;
   final String productName;
-  final double unitPrice;
+  final String? packSize;
+  final String? imageUrl;
+  final double casePrice;
   final int quantity;
   final double lineTotal;
-  final String? imageAssetPath;
-
-  ShopCartItem toCartItem(Map<String, ShopCatalogProduct> catalogByCode) {
-    final matchedProduct = catalogByCode[productCode];
-    return ShopCartItem(
-      product:
-          matchedProduct ??
-          ShopCatalogProduct(
-            code: productCode,
-            name: productName,
-            description: 'Saved from previous order',
-            caseInfo: 'Previous order item',
-            unitPrice: unitPrice,
-            unitLabel: '/ case',
-            imageAssetPath: imageAssetPath ?? '',
-            badgeLabel: productName.isNotEmpty
-                ? productName.substring(0, 1).toUpperCase()
-                : 'P',
-          ),
-      quantity: quantity,
-    );
-  }
+  final bool isCurrentlyAvailable;
 }
 
 class ShopOrder {
@@ -64,6 +51,11 @@ class ShopOrder {
     required this.totalAmount,
     required this.placedAt,
     required this.items,
+    this.customerNote,
+    this.delayReason,
+    this.delayedAt,
+    this.deliveryDueAt,
+    this.isOverdue = false,
   });
 
   factory ShopOrder.fromJson(Map<String, dynamic> json) {
@@ -84,6 +76,15 @@ class ShopOrder {
       totalAmount: _readDouble(json['totalAmount']),
       placedAt: DateTime.tryParse(json['placedAt'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
+      customerNote: json['customerNote'] as String?,
+      delayReason: json['delayReason'] as String?,
+      delayedAt: DateTime.tryParse(
+        json['delayedAt'] as String? ?? '',
+      )?.toLocal(),
+      deliveryDueAt: DateTime.tryParse(
+        json['deliveryDueAt'] as String? ?? '',
+      )?.toLocal(),
+      isOverdue: json['isOverdue'] == true,
       items: items,
     );
   }
@@ -95,6 +96,11 @@ class ShopOrder {
   final String currencyCode;
   final double totalAmount;
   final DateTime placedAt;
+  final String? customerNote;
+  final String? delayReason;
+  final DateTime? delayedAt;
+  final DateTime? deliveryDueAt;
+  final bool isOverdue;
   final List<ShopOrderItem> items;
 }
 

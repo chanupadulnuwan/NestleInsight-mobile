@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
@@ -39,8 +40,21 @@ class ShopOwnerHomeTab extends StatelessWidget {
         SizedBox(height: isTablet ? 22 : 18),
         _SearchBar(
           isTablet: isTablet,
-          onFilterTap: () =>
-              onShowMessage('Filter options can be connected next.'),
+          query: controller.searchQuery,
+          onChanged: controller.updateSearchQuery,
+          onTrailingAction: () {
+            if (controller.searchQuery.isNotEmpty ||
+                controller.selectedCategory != 'All') {
+              controller.resetCatalogFilters();
+              return;
+            }
+
+            controller.loadCatalog();
+          },
+          trailingIcon: controller.searchQuery.isNotEmpty ||
+                  controller.selectedCategory != 'All'
+              ? Icons.close
+              : Icons.refresh,
         ),
         SizedBox(height: isTablet ? 22 : 18),
         _OfferBanner(isTablet: isTablet),
@@ -48,7 +62,7 @@ class ShopOwnerHomeTab extends StatelessWidget {
         _ProductSection(
           controller: controller,
           isTablet: isTablet,
-          onSeeAll: () => onShowMessage('Product catalog can be expanded next.'),
+          onSeeAll: () => _showAllProductsSheet(context),
           onAddToCart: (productName) => onShowMessage(
             '$productName added to the cart.',
           ),
@@ -68,6 +82,18 @@ class ShopOwnerHomeTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _showAllProductsSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AllProductsSheet(
+        isTablet: isTablet,
+        products: controller.allCatalogProducts,
+      ),
     );
   }
 }
@@ -215,18 +241,59 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.isTablet, required this.onFilterTap});
+class _SearchBar extends StatefulWidget {
+  const _SearchBar({
+    required this.isTablet,
+    required this.query,
+    required this.onChanged,
+    required this.onTrailingAction,
+    required this.trailingIcon,
+  });
 
   final bool isTablet;
-  final VoidCallback onFilterTap;
+  final String query;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onTrailingAction;
+  final IconData trailingIcon;
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  late final TextEditingController _textController;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.query);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query == _textController.text) {
+      return;
+    }
+
+    _textController.value = TextEditingValue(
+      text: widget.query,
+      selection: TextSelection.collapsed(offset: widget.query.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isTablet ? 18 : 14,
-        vertical: isTablet ? 12 : 10,
+        horizontal: widget.isTablet ? 18 : 14,
+        vertical: widget.isTablet ? 12 : 10,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -245,25 +312,32 @@ class _SearchBar extends StatelessWidget {
           Icon(
             Icons.search,
             color: AppTheme.textSoft,
-            size: isTablet ? 24 : 22,
+            size: widget.isTablet ? 24 : 22,
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              'Search Nestle products...',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSoft,
-                fontSize: isTablet ? 17 : 15,
+            child: TextField(
+              controller: _textController,
+              onChanged: widget.onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Search Nestle products...',
+                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSoft,
+                      fontSize: widget.isTablet ? 17 : 15,
+                    ),
               ),
             ),
           ),
           IconButton.filled(
-            onPressed: onFilterTap,
+            onPressed: widget.onTrailingAction,
             style: IconButton.styleFrom(
               backgroundColor: AppTheme.surfaceTint,
               foregroundColor: AppTheme.primaryBrownDark,
             ),
-            icon: const Icon(Icons.tune),
+            icon: Icon(widget.trailingIcon),
           ),
         ],
       ),
@@ -354,14 +428,8 @@ class _ProductSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final products = controller.catalog;
+    final categories = controller.catalogCategories;
     final crossAxisCount = isTablet ? 2 : 1;
-    const categories = <String>[
-      'All',
-      'Beverages',
-      'Dairy',
-      'Confectionery',
-      'Culinary',
-    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,60 +449,132 @@ class _ProductSection extends StatelessWidget {
             TextButton(onPressed: onSeeAll, child: const Text('See all')),
           ],
         ),
+        if (controller.catalogError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4F2),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE8C4BE)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.error_outline, color: Color(0xFF9B5A52)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      controller.catalogError!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF8A4D46),
+                          ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      controller.loadCatalog();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 48,
-          child: ListView.separated(
+        ScrollConfiguration(
+          behavior: const MaterialScrollBehavior().copyWith(
+            scrollbars: false,
+          ),
+          child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            itemCount: categories.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final isSelected = index == 0;
-              return ChoiceChip(
-                label: Text(categories[index]),
-                selected: isSelected,
-                onSelected: (_) {},
-                selectedColor: AppTheme.primaryBrown,
-                backgroundColor: Colors.white,
-                labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : AppTheme.primaryBrownDark,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-                side: BorderSide(color: AppTheme.outlineWarm.withAlpha(120)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              );
-            },
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            child: Row(
+              children: List<Widget>.generate(categories.length, (index) {
+                final category = categories[index];
+                final isSelected = category == controller.selectedCategory;
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index == categories.length - 1 ? 0 : 10,
+                  ),
+                  child: ChoiceChip(
+                    label: Text(category),
+                    selected: isSelected,
+                    onSelected: (_) => controller.selectCategory(category),
+                    selectedColor: AppTheme.primaryBrown,
+                    backgroundColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color:
+                          isSelected ? Colors.white : AppTheme.primaryBrownDark,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    side: BorderSide(color: AppTheme.outlineWarm.withAlpha(120)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
         const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: products.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            mainAxisExtent: isTablet ? 428 : 408,
-          ),
-          itemBuilder: (context, index) {
-            final product = products[index];
+        if (controller.isLoadingCatalog && !controller.hasCatalogProducts)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (products.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceWarm,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppTheme.outlineWarm.withAlpha(100)),
+            ),
+            child: Text(
+              controller.searchQuery.trim().isEmpty &&
+                      controller.selectedCategory == 'All'
+                  ? 'No active products are available right now.'
+                  : 'No active products matched the current search or category.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSoft,
+                  ),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: products.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              mainAxisExtent: isTablet ? 428 : 408,
+            ),
+            itemBuilder: (context, index) {
+              final product = products[index];
 
-            return _ProductCard(
-              product: product,
-              isTablet: isTablet,
-              quantity: controller.selectedQuantityFor(product.code),
-              onIncrease: () => controller.incrementSelection(product.code),
-              onDecrease: () => controller.decrementSelection(product.code),
-              onAddToCart: () {
-                controller.addToCart(product);
-                onAddToCart(product.name);
-              },
-            );
-          },
-        ),
+              return _ProductCard(
+                product: product,
+                isTablet: isTablet,
+                quantity: controller.selectedQuantityFor(product.id),
+                onIncrease: () => controller.incrementSelection(product.id),
+                onDecrease: () => controller.decrementSelection(product.id),
+                onAddToCart: () {
+                  controller.addToCart(product);
+                  onAddToCart(product.name);
+                },
+              );
+            },
+          ),
       ],
     );
   }
@@ -485,22 +625,9 @@ class _ProductCard extends StatelessWidget {
               child: SizedBox(
                 width: isTablet ? 176 : 138,
                 height: isTablet ? 140 : 110,
-                child: Image.asset(
-                  product.imageAssetPath,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Center(
-                      child: Text(
-                        product.badgeLabel,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          color: AppTheme.primaryBrownDark,
-                          fontWeight: FontWeight.w700,
-                          fontSize: isTablet ? 28 : 20,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    );
-                  },
+                child: ProductImageBox(
+                  imageSource: product.imageUrl,
+                  fallbackLabel: product.badgeLabel,
                 ),
               ),
             ),
@@ -533,7 +660,7 @@ class _ProductCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              product.description,
+              product.displayDescription,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -611,7 +738,7 @@ class _PriceBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          _formatCurrency(product.unitPrice, showDecimals: false),
+          _formatCurrency(product.orderPrice, showDecimals: false),
           style: theme.textTheme.headlineMedium?.copyWith(
             color: AppTheme.primaryBrownDark,
             fontWeight: FontWeight.w700,
@@ -759,6 +886,187 @@ class _InfoChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AllProductsSheet extends StatelessWidget {
+  const _AllProductsSheet({
+    required this.isTablet,
+    required this.products,
+  });
+
+  final bool isTablet;
+  final List<ShopCatalogProduct> products;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Center(
+                  child: Container(
+                    width: 56,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.outlineWarm,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'All Products',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: AppTheme.textDark,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${products.length} active products available',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSoft,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.65,
+                  ),
+                  child: products.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              'No active products are available right now.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: AppTheme.textSoft),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: products.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final product = products[index];
+                            final packSizeLabel = product.packSize.trim().isEmpty
+                                ? product.categoryName
+                                : '${product.categoryName} • ${product.packSize}';
+
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfaceWarm,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: AppTheme.outlineWarm.withAlpha(100),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  SizedBox(
+                                    width: isTablet ? 92 : 72,
+                                    height: isTablet ? 92 : 72,
+                                    child: ProductImageBox(
+                                      imageSource: product.imageUrl,
+                                      fallbackLabel: product.badgeLabel,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          product.name,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                color: AppTheme.textDark,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          packSizeLabel,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: AppTheme.textSoft,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          product.caseInfo,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color:
+                                                    AppTheme.primaryBrownDark,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _formatCurrency(
+                                            product.orderPrice,
+                                            showDecimals: false,
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                color:
+                                                    AppTheme.primaryBrownDark,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
