@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:mobile/core/network/dio_client.dart';
 import 'package:mobile/core/network/network_error_helper.dart';
 import 'package:mobile/features/activity/domain/activity_entry.dart';
-import 'package:mobile/features/activity/domain/order_feedback_request.dart';
 
 class ActivityFeedServiceException implements Exception {
   const ActivityFeedServiceException(this.message, {this.code});
@@ -84,31 +83,6 @@ class ActivityFeedService {
         extractBackendErrorMessage(
           error,
           fallbackMessage: 'Unable to submit feedback right now.',
-        ),
-        code: extractBackendErrorCode(error),
-      );
-    }
-  }
-
-  /// Submit a star rating + optional comment for a completed order.
-  /// The [territoryId] and [shopOwnerId] are resolved on the server from the JWT.
-  Future<FeedbackSubmitResult> submitOrderFeedback(
-    OrderFeedbackRequest request,
-  ) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/activities/order-feedback',
-        data: request.toJson(),
-      );
-
-      return FeedbackSubmitResult.fromJson(
-        response.data ?? <String, dynamic>{},
-      );
-    } on DioException catch (error) {
-      throw ActivityFeedServiceException(
-        extractBackendErrorMessage(
-          error,
-          fallbackMessage: 'Unable to submit your rating right now.',
         ),
         code: extractBackendErrorCode(error),
       );

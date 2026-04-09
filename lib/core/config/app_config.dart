@@ -11,16 +11,15 @@ class AppConfig {
       return _apiBaseUrlOverride;
     }
 
-    // MUST be this before pushing
     if (kIsWeb) {
       return 'https://backend.obscuranet.it.com';
     }
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return 'https://backend.obscuranet.it.com'; // CHANGED BACK!
+        return 'https://backend.obscuranet.it.com';
       default:
-        return 'https://backend.obscuranet.it.com'; // CHANGED BACK!
+        return 'https://backend.obscuranet.it.com';
     }
   }
 
@@ -30,7 +29,8 @@ class AppConfig {
       return '';
     }
 
-    if (normalized.startsWith('http://') ||
+    if (
+        normalized.startsWith('http://') ||
         normalized.startsWith('https://') ||
         normalized.startsWith('assets/')) {
       return normalized;
