@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/services/otp_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/auth/presentation/pages/pending_approval_screen.dart';
 import 'package:mobile/features/auth/presentation/widgets/auth_page_shell.dart';
 import 'package:mobile/features/auth/presentation/widgets/custom_text_field.dart';
 
@@ -12,6 +13,9 @@ class OtpVerificationPage extends StatefulWidget {
     this.initialOtpDeliveryMethod,
     this.title = 'Verify OTP',
     this.subtitle,
+    // When true, a successful OTP verification navigates to
+    // PendingApprovalScreen instead of popping with `true`.
+    this.requiresApproval = false,
   });
 
   final String identifier;
@@ -19,6 +23,11 @@ class OtpVerificationPage extends StatefulWidget {
   final String? initialOtpDeliveryMethod;
   final String title;
   final String? subtitle;
+
+  /// Set to true for SALES_REP and other roles that need admin approval
+  /// after OTP verification.  The [identifier] (email) is passed to
+  /// [PendingApprovalScreen] for its polling loop.
+  final bool requiresApproval;
 
   @override
   State<OtpVerificationPage> createState() => _OtpVerificationPageState();
@@ -68,7 +77,19 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       }
 
       _showMessage(result.message);
-      Navigator.of(context).pop(true);
+
+      if (widget.requiresApproval) {
+        // For roles that need admin approval, land on the polling screen
+        // instead of returning control to SignupPage.
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                PendingApprovalScreen(email: widget.identifier),
+          ),
+        );
+      } else {
+        Navigator.of(context).pop(true);
+      }
     } on OtpServiceException catch (error) {
       if (!mounted) {
         return;

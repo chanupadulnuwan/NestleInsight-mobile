@@ -42,6 +42,37 @@ class AuthResult {
   final String? debugOtpCode;
 }
 
+/// Returned by GET /auth/status?email= and consumed by [PendingApprovalScreen].
+class RegistrationStatusResult {
+  const RegistrationStatusResult({
+    required this.accountStatus,
+    required this.approvalStatus,
+    this.rejectionReason,
+  });
+
+  factory RegistrationStatusResult.fromJson(Map<String, dynamic> json) {
+    return RegistrationStatusResult(
+      accountStatus: json['accountStatus'] as String? ?? 'PENDING',
+      approvalStatus: json['approvalStatus'] as String? ?? 'PENDING',
+      rejectionReason: json['rejectionReason'] as String?,
+    );
+  }
+
+  /// One of: PENDING | OTP_PENDING | ACTIVE | SUSPENDED | REJECTED
+  final String accountStatus;
+
+  /// One of: PENDING | APPROVED | REJECTED
+  final String approvalStatus;
+
+  final String? rejectionReason;
+
+  bool get isApproved =>
+      approvalStatus == 'APPROVED' && accountStatus == 'ACTIVE';
+
+  bool get isRejected =>
+      approvalStatus == 'REJECTED' || accountStatus == 'REJECTED';
+}
+
 class AuthService {
   AuthService({Dio? dio, TokenStorageService? tokenStorageService})
     : _dio = dio ?? DioClient.instance.client,
@@ -126,6 +157,29 @@ class AuthService {
         extractBackendErrorMessage(
           error,
           fallbackMessage: 'Unable to create the account right now.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
+  Future<RegistrationStatusResult> getAccountStatus({
+    required String email,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/auth/status',
+        queryParameters: {'email': email.trim().toLowerCase()},
+      );
+
+      return RegistrationStatusResult.fromJson(
+        response.data ?? <String, dynamic>{},
+      );
+    } on DioException catch (error) {
+      throw AuthServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to check account status right now.',
         ),
         code: extractBackendErrorCode(error),
       );

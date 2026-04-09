@@ -138,7 +138,7 @@ class DistributorService {
         data: {
           'category': category,
           'message': message,
-          if (assignmentId != null) 'assignmentId': assignmentId,
+          'assignmentId': ?assignmentId,
         },
       );
       return response.data?['message'] as String? ?? 'Note sent.';

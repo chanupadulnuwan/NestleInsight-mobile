@@ -271,8 +271,9 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                           ),
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           onChanged: (v) {
-                            if (v.length == 1 && index < 5) _pinFocusNodes[index + 1].requestFocus();
-                            else if (v.isEmpty && index > 0) _pinFocusNodes[index - 1].requestFocus();
+                            if (v.length == 1 && index < 5) {
+                              _pinFocusNodes[index + 1].requestFocus();
+                            } else if (v.isEmpty && index > 0) _pinFocusNodes[index - 1].requestFocus();
                             setState(() {});
                           },
                         ),

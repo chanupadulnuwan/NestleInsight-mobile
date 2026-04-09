@@ -260,8 +260,9 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                           ),
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           onChanged: (v) {
-                            if (v.length == 1 && index < 5) _pinFocusNodes[index + 1].requestFocus();
-                            else if (v.isEmpty && index > 0) _pinFocusNodes[index - 1].requestFocus();
+                            if (v.length == 1 && index < 5) {
+                              _pinFocusNodes[index + 1].requestFocus();
+                            } else if (v.isEmpty && index > 0) _pinFocusNodes[index - 1].requestFocus();
                             setState(() {});
                           },
                         ),
@@ -359,7 +360,7 @@ class _ReturnItemCard extends StatelessWidget {
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: DropdownButtonFormField<String>(
-            value: item.unitType,
+            initialValue: item.unitType,
             decoration: const InputDecoration(labelText: 'Unit', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
             items: const [
               DropdownMenuItem(value: 'CASE', child: Text('Case')),
@@ -378,7 +379,7 @@ class _ReturnItemCard extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: item.reason,
+          initialValue: item.reason,
           decoration: const InputDecoration(labelText: 'Reason', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
           items: _reasons.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2))).toList(),
           onChanged: (v) { if (v != null) { item.reason = v; item.reasonNote = null; onChanged(); } },
