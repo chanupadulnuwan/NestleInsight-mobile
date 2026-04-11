@@ -6,6 +6,7 @@ import 'package:mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/distributor_home_page.dart';
 import 'package:mobile/features/home/presentation/pages/shop_owner_dashboard_page.dart';
 import 'package:mobile/features/home/presentation/pages/dummy_home_page.dart';
+import 'package:mobile/features/home/presentation/pages/sales_rep_home_page.dart';
 import 'package:dio/dio.dart';
 
 class AuthGate extends StatefulWidget {
@@ -62,6 +63,8 @@ class _AuthGateState extends State<AuthGate> {
       home = ShopOwnerDashboardPage(user: user);
     } else if (role == 'TERRITORY_DISTRIBUTOR') {
       home = DistributorHomePage(user: user);
+    } else if (role == 'SALES_REP') {
+      home = const SalesRepHomePage();
     } else {
       home = DummyHomePage(user: user);
     }

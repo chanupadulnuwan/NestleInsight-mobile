@@ -16,6 +16,12 @@ class AppTheme {
   static const Color textDark = Color(0xFF4F3D31);
   static const Color textSoft = Color(0xFF8C7663);
 
+  // Added aliases for strict prompt adherence
+  static const Color kBrown = primaryBrown;
+  static const Color kCream = surfaceTint;
+  static const Color kOrange = Color(0xFFD97753); // Suitable orange for the palette
+  static const Color kTextDark = textDark;
+
   static ThemeData get light {
     final baseTextTheme = ThemeData(brightness: Brightness.light).textTheme;
     final colorScheme =

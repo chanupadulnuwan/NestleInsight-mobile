@@ -9,6 +9,7 @@ import 'package:mobile/features/auth/presentation/widgets/custom_text_field.dart
 import 'package:mobile/features/distributor/presentation/pages/distributor_home_page.dart';
 import 'package:mobile/features/home/presentation/pages/shop_owner_dashboard_page.dart';
 import 'package:mobile/features/home/presentation/pages/dummy_home_page.dart';
+import 'package:mobile/features/home/presentation/pages/sales_rep_home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -105,6 +106,9 @@ class _LoginPageState extends State<LoginPage> {
     }
     if (role == 'TERRITORY_DISTRIBUTOR') {
       return DistributorHomePage(user: user);
+    }
+    if (role == 'SALES_REP') {
+      return const SalesRepHomePage();
     }
     return DummyHomePage(user: user);
   }
