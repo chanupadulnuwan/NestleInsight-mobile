@@ -29,8 +29,7 @@ class AppConfig {
       return '';
     }
 
-    if (
-        normalized.startsWith('http://') ||
+    if (normalized.startsWith('http://') ||
         normalized.startsWith('https://') ||
         normalized.startsWith('assets/')) {
       return normalized;

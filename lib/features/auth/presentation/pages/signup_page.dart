@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/services/location_picker_service.dart';
+import 'package:mobile/core/services/otp_service.dart';
 import 'package:mobile/core/services/territory_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/form_validators.dart';
@@ -196,8 +197,8 @@ class _SignupPageState extends State<SignupPage> {
         warehouseName: _isEmployeeRole
             ? _warehouseController.text.trim()
             : _warehouseController.text.trim().isEmpty
-                ? null
-                : _warehouseController.text.trim(),
+            ? null
+            : _warehouseController.text.trim(),
         shopName: _isShopOwner ? _shopNameController.text.trim() : null,
         address: _isShopOwner ? _shopAddressController.text.trim() : null,
         latitude: _selectedLocation?.latitude,
@@ -209,8 +210,8 @@ class _SignupPageState extends State<SignupPage> {
       }
 
       if (result.otpRequired) {
-        final verified = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
+        final otpResult = await Navigator.of(context).push<OtpResult>(
+          MaterialPageRoute<OtpResult>(
             builder: (_) => OtpVerificationPage(
               identifier: _emailController.text.trim(),
               initialDebugOtpCode: result.debugOtpCode,
@@ -226,9 +227,17 @@ class _SignupPageState extends State<SignupPage> {
           return;
         }
 
-        if (verified == true) {
-          _showMessage('Account verified. You can sign in now.');
-          Navigator.of(context).pop(_emailController.text.trim());
+        if (otpResult != null) {
+          if (otpResult.needsAdminApproval) {
+            await Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (_) => const _PendingApprovalScreen(),
+              ),
+            );
+          } else {
+            _showMessage('Account verified. You can sign in now.');
+            Navigator.of(context).pop(_emailController.text.trim());
+          }
         }
         return;
       }
@@ -321,7 +330,8 @@ class _SignupPageState extends State<SignupPage> {
           controller: _warehouseController,
           prefixIcon: const Icon(Icons.inventory_2_outlined),
           textInputAction: TextInputAction.next,
-          helperText: 'The territory will auto-fill after the warehouse name matches.',
+          helperText:
+              'The territory will auto-fill after the warehouse name matches.',
           validator: (value) {
             if (!_isEmployeeRole) {
               return null;
@@ -635,6 +645,83 @@ class _SignupPageState extends State<SignupPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingApprovalScreen extends StatelessWidget {
+  const _PendingApprovalScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: AppTheme.surfaceWarm,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceTint,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.hourglass_top_rounded,
+                  size: 44,
+                  color: AppTheme.primaryBrownDark,
+                ),
+              ),
+              const SizedBox(height: 32),
+              Text(
+                'Waiting for Approval',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w800,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your email has been verified. An administrator needs to review and approve your account before you can sign in.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSoft,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'You will receive access once the admin approves your request. This usually takes a short while.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textSoft,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBrownDark,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Back to Sign In'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

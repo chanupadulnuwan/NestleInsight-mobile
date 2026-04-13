@@ -68,7 +68,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       }
 
       _showMessage(result.message);
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(result);
     } on OtpServiceException catch (error) {
       if (!mounted) {
         return;
@@ -176,10 +176,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildNoticeCard(
-            icon: Icons.sms_outlined,
-            message: _otpHelpMessage,
-          ),
+          _buildNoticeCard(icon: Icons.sms_outlined, message: _otpHelpMessage),
           if (_debugOtpCode != null && _debugOtpCode!.isNotEmpty) ...[
             const SizedBox(height: 16),
             _buildNoticeCard(
@@ -227,7 +224,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           ),
           const SizedBox(height: 12),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Back'),
           ),
         ],

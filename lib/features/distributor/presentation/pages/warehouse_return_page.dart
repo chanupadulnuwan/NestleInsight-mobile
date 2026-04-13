@@ -22,8 +22,10 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   final _service = DistributorService();
   final _searchController = TextEditingController();
   final List<ReturnItemInput> _items = [];
-  final List<TextEditingController> _pinControllers =
-      List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _pinControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _pinFocusNodes = List.generate(6, (_) => FocusNode());
 
   bool _pinRequested = false;
@@ -37,58 +39,102 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   List<OrderItem> get _filteredInventory {
     final q = _searchController.text.trim().toLowerCase();
     if (q.isEmpty) return widget.lorryInventory;
-    return widget.lorryInventory.where((i) => i.productName.toLowerCase().contains(q)).toList();
+    return widget.lorryInventory
+        .where((i) => i.productName.toLowerCase().contains(q))
+        .toList();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    for (final c in _pinControllers) { c.dispose(); }
-    for (final f in _pinFocusNodes) { f.dispose(); }
+    for (final c in _pinControllers) {
+      c.dispose();
+    }
+    for (final f in _pinFocusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
   void _addItem(OrderItem product) {
-    final alreadyAdded = _items.any((i) => (i.productId != null && i.productId == product.productId) || i.productNameSnapshot == product.productName);
+    final alreadyAdded = _items.any(
+      (i) =>
+          (i.productId != null && i.productId == product.productId) ||
+          i.productNameSnapshot == product.productName,
+    );
     if (alreadyAdded) return;
     setState(() {
-      _items.add(ReturnItemInput(
-        productId: product.productId,
-        productNameSnapshot: product.productName,
-        quantity: product.quantity,
-        unitType: 'CASE',
-        reason: 'EXPIRED',
-        unitPrice: product.unitPrice,
-      ));
+      _items.add(
+        ReturnItemInput(
+          productId: product.productId,
+          productNameSnapshot: product.productName,
+          quantity: product.quantity,
+          unitType: 'CASE',
+          reason: 'EXPIRED',
+          unitPrice: product.unitPrice,
+        ),
+      );
     });
   }
 
   Future<void> _requestPin() async {
-    setState(() { _requestingPin = true; _error = null; });
+    setState(() {
+      _requestingPin = true;
+      _error = null;
+    });
     try {
-      await _service.requestWarehouseReturnPin(assignmentId: widget.assignmentId);
-      if (mounted) setState(() { _pinRequested = true; _requestingPin = false; });
+      await _service.requestWarehouseReturnPin(
+        assignmentId: widget.assignmentId,
+      );
+      if (mounted)
+        setState(() {
+          _pinRequested = true;
+          _requestingPin = false;
+        });
     } on DistributorServiceException catch (e) {
-      if (mounted) setState(() { _error = e.message; _requestingPin = false; });
+      if (mounted)
+        setState(() {
+          _error = e.message;
+          _requestingPin = false;
+        });
     }
   }
 
   Future<void> _submit() async {
     if (_items.isEmpty) {
-      setState(() { _error = 'Add at least one item to return.'; });
+      setState(() {
+        _error = 'Add at least one item to return.';
+      });
       return;
     }
     final pin = _currentPin;
     if (pin.length != 6) {
-      setState(() { _error = 'Enter the 6-digit PIN from your Territory Manager.'; });
+      setState(() {
+        _error = 'Enter the 6-digit PIN from your Territory Manager.';
+      });
       return;
     }
-    setState(() { _submitting = true; _error = null; });
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
     try {
-      await _service.submitReturn(assignmentId: widget.assignmentId, tmPin: pin, items: _items);
-      if (mounted) setState(() { _success = true; _submitting = false; });
+      await _service.submitReturn(
+        assignmentId: widget.assignmentId,
+        tmPin: pin,
+        items: _items,
+      );
+      if (mounted)
+        setState(() {
+          _success = true;
+          _submitting = false;
+        });
     } on DistributorServiceException catch (e) {
-      if (mounted) setState(() { _error = e.message; _submitting = false; });
+      if (mounted)
+        setState(() {
+          _error = e.message;
+          _submitting = false;
+        });
     }
   }
 
@@ -117,17 +163,33 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppTheme.outlineWarm),
                     ),
-                    child: Row(children: [
-                      Icon(Icons.warehouse_outlined, color: AppTheme.primaryBrown),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text('Select unsold or returned products from the lorry to bring back to the warehouse.',
-                        style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textDark),
-                      )),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warehouse_outlined,
+                          color: AppTheme.primaryBrown,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Select unsold or returned products from the lorry to bring back to the warehouse.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 20),
 
-                  Text('Products on Lorry', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                  Text(
+                    'Products on Lorry',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _searchController,
@@ -142,41 +204,88 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                   if (widget.lorryInventory.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text('No products remaining on lorry.', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSoft)),
+                      child: Text(
+                        'No products remaining on lorry.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSoft,
+                        ),
+                      ),
                     )
                   else
                     ...(_filteredInventory.map((product) {
-                      final alreadyAdded = _items.any((i) => (i.productId != null && i.productId == product.productId) || i.productNameSnapshot == product.productName);
+                      final alreadyAdded = _items.any(
+                        (i) =>
+                            (i.productId != null &&
+                                i.productId == product.productId) ||
+                            i.productNameSnapshot == product.productName,
+                      );
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: alreadyAdded ? AppTheme.surfaceTint : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: alreadyAdded ? AppTheme.primaryBrown.withAlpha(180) : AppTheme.outlineWarm),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
                           ),
-                          child: Row(children: [
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(product.productName, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: AppTheme.textDark)),
-                              Text('${product.quantity} case(s)', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSoft)),
-                            ])),
-                            if (alreadyAdded)
-                              const Icon(Icons.check_circle, color: AppTheme.primaryBrown, size: 22)
-                            else
-                              IconButton(
-                                onPressed: () => _addItem(product),
-                                icon: const Icon(Icons.add_circle_outline),
-                                color: AppTheme.primaryBrown,
+                          decoration: BoxDecoration(
+                            color: alreadyAdded
+                                ? AppTheme.surfaceTint
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: alreadyAdded
+                                  ? AppTheme.primaryBrown.withAlpha(180)
+                                  : AppTheme.outlineWarm,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.productName,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textDark,
+                                          ),
+                                    ),
+                                    Text(
+                                      '${product.quantity} case(s)',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(color: AppTheme.textSoft),
+                                    ),
+                                  ],
+                                ),
                               ),
-                          ]),
+                              if (alreadyAdded)
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: AppTheme.primaryBrown,
+                                  size: 22,
+                                )
+                              else
+                                IconButton(
+                                  onPressed: () => _addItem(product),
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  color: AppTheme.primaryBrown,
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     })),
 
                   if (_items.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Text('Return List', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                    Text(
+                      'Return List',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     ..._items.asMap().entries.map((entry) {
                       final i = entry.key;
@@ -185,28 +294,63 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white, borderRadius: BorderRadius.circular(14),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: AppTheme.outlineWarm),
                         ),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            Expanded(child: Text(item.productNameSnapshot, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.textDark))),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 18, color: Color(0xFF9B4B46)),
-                              onPressed: () => setState(() => _items.removeAt(i)),
-                              visualDensity: VisualDensity.compact,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.productNameSnapshot,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.textDark,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 18,
+                                    color: Color(0xFF9B4B46),
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _items.removeAt(i)),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
                             ),
-                          ]),
-                          Row(children: [
-                            Expanded(child: TextFormField(
-                              initialValue: item.quantity.toString(),
-                              decoration: const InputDecoration(labelText: 'Qty (cases)', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              onChanged: (v) { item.quantity = int.tryParse(v) ?? 1; setState(() {}); },
-                            )),
-                          ]),
-                        ]),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    initialValue: item.quantity.toString(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Qty (cases)',
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    onChanged: (v) {
+                                      item.quantity = int.tryParse(v) ?? 1;
+                                      setState(() {});
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       );
                     }),
                   ],
@@ -215,10 +359,19 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                   const Divider(color: AppTheme.outlineWarm),
                   const SizedBox(height: 16),
 
-                  Text('Territory Manager Verification', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                  Text(
+                    'Territory Manager Verification',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text('Request a PIN — it will be sent to your territory manager\'s activity center. They will share the 6-digit code with you to confirm the return.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+                  Text(
+                    'Request a PIN — it will be sent to your territory manager\'s activity center. They will share the 6-digit code with you to confirm the return.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSoft,
+                    ),
                   ),
                   const SizedBox(height: 14),
 
@@ -226,71 +379,136 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     FilledButton.icon(
                       onPressed: _requestingPin ? null : _requestPin,
                       icon: _requestingPin
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
                           : const Icon(Icons.key_outlined),
                       label: const Text('Request Warehouse Return PIN'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryBrown,
                         minimumSize: const Size(double.infinity, 52),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ] else ...[
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0FFF4), borderRadius: BorderRadius.circular(14),
+                        color: const Color(0xFFF0FFF4),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: const Color(0xFF9FD4B2)),
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.check_circle_outline, color: Color(0xFF1E7A52), size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text('PIN sent to your Territory Manager. Ask them for the 6-digit code.',
-                          style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF1E5C3A)),
-                        )),
-                      ]),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline,
+                            color: Color(0xFF1E7A52),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'PIN sent to your Territory Manager. Ask them for the 6-digit code.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF1E5C3A),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(6, (index) => SizedBox(
-                        width: 44, height: 54,
-                        child: TextField(
-                          controller: _pinControllers[index],
-                          focusNode: _pinFocusNodes[index],
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          maxLength: 1,
-                          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: AppTheme.textDark),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            contentPadding: EdgeInsets.zero,
-                            filled: true, fillColor: Colors.white,
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.outlineWarm, width: 1.5)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.primaryBrown, width: 2)),
+                      children: List.generate(
+                        6,
+                        (index) => SizedBox(
+                          width: 44,
+                          height: 54,
+                          child: TextField(
+                            controller: _pinControllers[index],
+                            focusNode: _pinFocusNodes[index],
+                            textAlign: TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            maxLength: 1,
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textDark,
+                            ),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              contentPadding: EdgeInsets.zero,
+                              filled: true,
+                              fillColor: Colors.white,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppTheme.outlineWarm,
+                                  width: 1.5,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppTheme.primaryBrown,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onChanged: (v) {
+                              if (v.length == 1 && index < 5) {
+                                _pinFocusNodes[index + 1].requestFocus();
+                              } else if (v.isEmpty && index > 0)
+                                _pinFocusNodes[index - 1].requestFocus();
+                              setState(() {});
+                            },
                           ),
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          onChanged: (v) {
-                            if (v.length == 1 && index < 5) _pinFocusNodes[index + 1].requestFocus();
-                            else if (v.isEmpty && index > 0) _pinFocusNodes[index - 1].requestFocus();
-                            setState(() {});
-                          },
                         ),
-                      )),
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Center(child: TextButton(onPressed: _requestPin, child: const Text('Resend to TM'))),
+                    Center(
+                      child: TextButton(
+                        onPressed: _requestPin,
+                        child: const Text('Resend to TM'),
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     FilledButton.icon(
                       onPressed: _submitting ? null : _submit,
                       icon: _submitting
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
                           : const Icon(Icons.check_outlined),
-                      label: const Text('Submit Return & Close Trip', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      label: const Text(
+                        'Submit Return & Close Trip',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryBrownDark,
                         minimumSize: const Size(double.infinity, 54),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
                       ),
                     ),
                   ],
@@ -300,10 +518,17 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF0EF), borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFFF0EF),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFE0A7A3)),
                       ),
-                      child: Text(_error!, style: const TextStyle(color: Color(0xFF9B4B46), fontSize: 13)),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Color(0xFF9B4B46),
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 32),
@@ -323,24 +548,41 @@ class _SuccessView extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.warehouse, color: AppTheme.primaryBrown, size: 72),
-          const SizedBox(height: 16),
-          Text('Trip Closed Successfully', textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: AppTheme.textDark),
-          ),
-          const SizedBox(height: 8),
-          Text('All returned products have been logged and your trip has been marked as completed.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
-          ),
-          const SizedBox(height: 28),
-          FilledButton(
-            onPressed: onDone,
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBrown, minimumSize: const Size(220, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-            child: const Text('Back to Home'),
-          ),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warehouse, color: AppTheme.primaryBrown, size: 72),
+            const SizedBox(height: 16),
+            Text(
+              'Trip Closed Successfully',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'All returned products have been logged and your trip has been marked as completed.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: onDone,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primaryBrown,
+                minimumSize: const Size(220, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text('Back to Home'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -202,6 +202,17 @@ class ShopOwnerDashboardController extends ChangeNotifier {
     );
   }
 
+  void updateCartQuantity(String productId, int quantity) {
+    final item = _cartItems[productId];
+    if (item == null) return;
+    if (quantity <= 0) {
+      _cartItems.remove(productId);
+    } else {
+      _cartItems[productId] = item.copyWith(quantity: quantity.clamp(1, 99));
+    }
+    notifyListeners();
+  }
+
   void clearCart() {
     _cartItems.clear();
     notifyListeners();

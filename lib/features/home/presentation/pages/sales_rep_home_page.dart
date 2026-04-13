@@ -4,6 +4,11 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:mobile/features/auth/presentation/pages/login_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/start_route_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/store_visit_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/daily_report_page.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../cubit/home_cubit.dart';
@@ -29,9 +34,9 @@ class SalesRepHomePage extends StatelessWidget {
               return Center(
                 child: Text(
                   state.message,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.kTextDark,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: AppTheme.kTextDark),
                 ),
               );
             }
@@ -132,10 +137,7 @@ class SalesRepHomePage extends StatelessWidget {
             width: double.infinity,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  AppTheme.kBrown,
-                  AppTheme.kTextDark,
-                ],
+                colors: [AppTheme.kBrown, AppTheme.kTextDark],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -148,7 +150,7 @@ class SalesRepHomePage extends StatelessWidget {
                   color: AppTheme.kTextDark.withOpacity(0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
-                )
+                ),
               ],
             ),
             child: SafeArea(
@@ -156,13 +158,17 @@ class SalesRepHomePage extends StatelessWidget {
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           _getGreeting(),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
                                 color: AppTheme.kCream.withOpacity(0.8),
                                 fontWeight: FontWeight.w500,
                               ),
@@ -170,7 +176,8 @@ class SalesRepHomePage extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           'Hello ${state.firstName}!',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -182,7 +189,11 @@ class SalesRepHomePage extends StatelessWidget {
                     top: 10,
                     right: 10,
                     child: IconButton(
-                      icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                      icon: const Icon(
+                        Icons.logout,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                       onPressed: () => _handleLogout(context),
                     ),
                   ),
@@ -228,17 +239,17 @@ class SalesRepHomePage extends StatelessWidget {
                 Text(
                   'Current Territory',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.kBrown,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: AppTheme.kBrown,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   state.territoryName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppTheme.kTextDark,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: AppTheme.kTextDark,
+                    fontWeight: FontWeight.bold,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -257,21 +268,21 @@ class SalesRepHomePage extends StatelessWidget {
                 Text(
                   '${state.shopsLeft}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppTheme.kTextDark,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 20,
-                      ),
+                    color: AppTheme.kTextDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
                 ),
                 Text(
                   'Shops',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.kBrown,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: AppTheme.kBrown,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -290,9 +301,9 @@ class SalesRepHomePage extends StatelessWidget {
             child: Text(
               'Your Dashboard',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.kTextDark,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: AppTheme.kTextDark,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           _buildActionCard(
@@ -301,6 +312,76 @@ class SalesRepHomePage extends StatelessWidget {
             icon: Icons.wb_sunny,
             color: AppTheme.kOrange,
             isLocked: false,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const StartRoutePage()),
+              );
+            },
+          ),
+          _buildActionCard(
+            context: context,
+            title: 'Register New Outlet',
+            icon: Icons.add_business,
+            color: AppTheme.kOrange,
+            isLocked: false,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const RegisterOutletPage(),
+                ),
+              );
+            },
+          ),
+          _buildActionCard(
+            context: context,
+            title: 'Log Store Visit',
+            icon: Icons.storefront,
+            color: AppTheme.kOrange,
+            isLocked: !hasRoute,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const StoreVisitPage(
+                    routeId: '00000000-0000-0000-0000-000000000001',
+                    territoryId: '00000000-0000-0000-0000-000000000001',
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildActionCard(
+            context: context,
+            title: 'Report Incident',
+            icon: Icons.warning_amber,
+            color: AppTheme.promotionMutedRed,
+            isLocked: !hasRoute,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ReportIncidentPage(
+                    routeId: '00000000-0000-0000-0000-000000000001',
+                    territoryId: '00000000-0000-0000-0000-000000000001',
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildActionCard(
+            context: context,
+            title: 'End of Day Report',
+            icon: Icons.assignment_turned_in,
+            color: AppTheme.securitySlate,
+            isLocked: !hasRoute,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DailyReportPage(
+                    routeId: '00000000-0000-0000-0000-000000000001',
+                    territoryId: '00000000-0000-0000-0000-000000000001',
+                  ),
+                ),
+              );
+            },
           ),
           _buildActionCard(
             context: context,
@@ -341,13 +422,14 @@ class SalesRepHomePage extends StatelessWidget {
     required IconData icon,
     required Color color,
     required bool isLocked,
+    VoidCallback? onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isLocked ? null : () { /* Navigate logic here */ },
+          onTap: isLocked ? null : onTap,
           borderRadius: BorderRadius.circular(20),
           splashColor: color.withOpacity(0.1),
           highlightColor: color.withOpacity(0.05),
@@ -359,7 +441,9 @@ class SalesRepHomePage extends StatelessWidget {
                 color: isLocked ? Colors.grey[200] : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isLocked ? Colors.transparent : AppTheme.kBrown.withOpacity(0.1),
+                  color: isLocked
+                      ? Colors.transparent
+                      : AppTheme.kBrown.withOpacity(0.1),
                 ),
                 boxShadow: isLocked
                     ? []
@@ -376,7 +460,9 @@ class SalesRepHomePage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isLocked ? Colors.grey[400] : color.withOpacity(0.15),
+                      color: isLocked
+                          ? Colors.grey[400]
+                          : color.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -390,17 +476,13 @@ class SalesRepHomePage extends StatelessWidget {
                     child: Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: isLocked ? Colors.grey[600] : AppTheme.kTextDark,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: isLocked ? Colors.grey[600] : AppTheme.kTextDark,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   if (isLocked)
-                    Icon(
-                      Icons.lock,
-                      color: Colors.grey[500],
-                      size: 24,
-                    )
+                    Icon(Icons.lock, color: Colors.grey[500], size: 24)
                   else
                     Icon(
                       Icons.arrow_forward_ios,

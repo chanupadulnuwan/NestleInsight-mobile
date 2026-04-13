@@ -26,7 +26,10 @@ class DistributorService {
       return DeliveryAssignment.fromJson(Map<String, dynamic>.from(raw as Map));
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to fetch assignment.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to fetch assignment.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
@@ -40,13 +43,19 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'PIN sent to shop owner.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to request delivery PIN.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to request delivery PIN.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
   }
 
-  Future<String> completeOrder({required String orderId, required String pin}) async {
+  Future<String> completeOrder({
+    required String orderId,
+    required String pin,
+  }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/delivery-assignments/orders/$orderId/complete',
@@ -55,7 +64,10 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'Order completed.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to complete order.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to complete order.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
@@ -69,7 +81,10 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'PIN sent to shop owner.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to request return PIN.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to request return PIN.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
@@ -88,21 +103,30 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'Return recorded.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to submit shop return.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to submit shop return.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
   }
 
-  Future<String> requestWarehouseReturnPin({required String assignmentId}) async {
+  Future<String> requestWarehouseReturnPin({
+    required String assignmentId,
+  }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/delivery-assignments/$assignmentId/request-warehouse-return-pin',
       );
-      return response.data?['message'] as String? ?? 'PIN sent to Territory Manager.';
+      return response.data?['message'] as String? ??
+          'PIN sent to Territory Manager.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to request warehouse return PIN.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to request warehouse return PIN.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
@@ -121,7 +145,10 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'Return submitted.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to submit return.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to submit return.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }
@@ -138,7 +165,7 @@ class DistributorService {
         data: {
           'category': category,
           'message': message,
-          if (assignmentId != null) 'assignmentId': assignmentId,
+          'assignmentId': ?assignmentId,
         },
       );
       return response.data?['message'] as String? ?? 'Note sent.';
@@ -167,7 +194,10 @@ class DistributorService {
       return response.data?['message'] as String? ?? 'Incident reported.';
     } on DioException catch (e) {
       throw DistributorServiceException(
-        extractBackendErrorMessage(e, fallbackMessage: 'Unable to report incident.'),
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unable to report incident.',
+        ),
         code: extractBackendErrorCode(e),
       );
     }

@@ -15,6 +15,7 @@ class OtpResult {
     this.otpDeliveryMethod,
     this.debugOtpCode,
     this.user,
+    this.needsAdminApproval = false,
   });
 
   factory OtpResult.fromJson(Map<String, dynamic> json) {
@@ -25,6 +26,7 @@ class OtpResult {
       otpDeliveryMethod: json['otpDeliveryMethod'] as String?,
       debugOtpCode: json['debugOtpCode'] as String?,
       user: rawUser is Map ? Map<String, dynamic>.from(rawUser) : null,
+      needsAdminApproval: json['needsAdminApproval'] as bool? ?? false,
     );
   }
 
@@ -32,6 +34,7 @@ class OtpResult {
   final String? otpDeliveryMethod;
   final String? debugOtpCode;
   final Map<String, dynamic>? user;
+  final bool needsAdminApproval;
 }
 
 class OtpService {

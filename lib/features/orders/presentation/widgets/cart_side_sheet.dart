@@ -150,7 +150,7 @@ class CartSideSheet extends StatelessWidget {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            '${item.quantity} x ${_formatCurrency(item.product.orderPrice)}',
+                                            _formatCurrency(item.product.orderPrice),
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyMedium
@@ -161,15 +161,63 @@ class CartSideSheet extends StatelessWidget {
                                         ],
                                       ),
                                     ),
-                                    Text(
-                                      _formatCurrency(item.lineTotal),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: AppTheme.primaryBrownDark,
-                                            fontWeight: FontWeight.w800,
-                                          ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          _formatCurrency(item.lineTotal),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                color: AppTheme.primaryBrownDark,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // 1. Decrement / Delete Button
+                                            IconButton(
+                                              icon: Icon(
+                                                item.quantity == 1 ? Icons.delete_outline : Icons.remove_circle_outline,
+                                                color: item.quantity == 1 ? Colors.red : Colors.grey,
+                                              ),
+                                              onPressed: () {
+                                                // This will naturally remove the item if it drops below 1
+                                                controller.updateCartQuantity(item.product.id, item.quantity - 1);
+                                              },
+                                            ),
+                                            
+                                            // 2. Current Quantity
+                                            SizedBox(
+                                              width: 24, // Fixed width prevents the layout from jumping when numbers change
+                                              child: Text(
+                                                '${item.quantity}',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold, 
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
+                                            
+                                            // 3. Increment Button
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.add_circle_outline, 
+                                                color: AppTheme.kBrown, // Strictly adhering to Nestlé design system
+                                              ),
+                                              onPressed: () {
+                                                // Controller will automatically clamp this at 99 max
+                                                controller.updateCartQuantity(item.product.id, item.quantity + 1);
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
