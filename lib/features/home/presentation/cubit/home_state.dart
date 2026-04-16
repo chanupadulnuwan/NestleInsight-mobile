@@ -9,12 +9,16 @@ class HomeLoaded extends HomeState {
   final String territoryName;
   final bool hasActiveRoute;
   final int shopsLeft;
+  final String? activeRouteId;
+  final String? activeTerritoryId;
 
   HomeLoaded({
     required this.firstName,
     required this.territoryName,
     required this.hasActiveRoute,
     required this.shopsLeft,
+    this.activeRouteId,
+    this.activeTerritoryId,
   });
 }
 

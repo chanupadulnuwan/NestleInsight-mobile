@@ -1,61 +1,63 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/network/dio_client.dart';
 import 'home_state.dart';
+import '../../../../core/network/dio_client.dart';
 
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(HomeInitial());
 
   Future<void> loadHomeData() async {
     emit(HomeLoading());
-
     try {
-      String firstName = 'User';
-      String territoryName = 'No Territory Assigned';
-      bool hasActiveRoute = false;
-      int shopsLeft = 0;
-
       final dio = DioClient.instance.client;
+      int shopsLeft = 0;
+      bool hasActiveRoute = false;
+      String firstName = "User";
+      String territoryName = "Unknown Territory";
+      String? activeTerritoryId;
+      String? activeRouteId;
 
-      // 1. User Info
+      // 1. Fetch User Data for Name & Territory
       try {
-        final resMe = await dio.get('/auth/me');
-        final userObj = resMe.data['user'] ?? resMe.data ?? {};
-        firstName = userObj['firstName'] ?? userObj['name'] ?? 'Alex';
-        territoryName = userObj['territory']?['name'] ?? userObj['territoryName'] ?? 'North District';
+        final resAuth = await dio.get('/auth/me');
+        final userData = resAuth.data['data'] ?? {};
+        firstName = userData['firstName'] ?? 'User';
+        territoryName = userData['territory']?['name'] ?? 'Unknown Territory';
       } catch (e) {
-        // Fallback for demo if endpoint fails
+        // Fallback already set
       }
 
-      // 2. Route Status
+      // 2. Shops Left
       try {
-        final resRoute = await dio.get('/routes/active');
+        final resBeat = await dio.get('/outlets/beat-plan/today');
+        final List items = resBeat.data['data'] ?? [];
+        shopsLeft = items.where((item) => item['status'] != 'COMPLETED').length;
+      } catch (e) {
+        shopsLeft = 14; // Fallback for UI if empty
+      }
+
+      // 3. Route Status
+      try {
+        final resRoute = await dio.get('/sales-routes/my');
         final routeData = resRoute.data ?? {};
-        hasActiveRoute = routeData['hasActiveRoute'] == true ||
-                         routeData['isActive'] == true ||
-                         routeData['status'] == 'ACTIVE' || 
-                         (routeData is Map && routeData.isNotEmpty); // If object exists, active
+        final actualRoute = routeData['route'] ?? {};
+
+        hasActiveRoute = actualRoute['status'] == 'IN_PROGRESS';
+        activeRouteId = actualRoute['id']?.toString();
+        activeTerritoryId = actualRoute['territoryId']?.toString();
       } catch (e) {
         hasActiveRoute = false;
-      }
-
-      // 3. Daily Shops
-      try {
-        final resShops = await dio.get('/outlets/beat-plan/today');
-        final shopsData = resShops.data ?? {};
-        final count = shopsData['count'] ?? shopsData['pending'] ?? 14;
-        shopsLeft = count is int ? count : int.tryParse(count.toString()) ?? 14;
-      } catch (e) {
-        shopsLeft = 14; // Fallback
       }
 
       emit(HomeLoaded(
         firstName: firstName,
         territoryName: territoryName,
-        hasActiveRoute: hasActiveRoute,
         shopsLeft: shopsLeft,
+        hasActiveRoute: hasActiveRoute,
+        activeRouteId: activeRouteId,
+        activeTerritoryId: activeTerritoryId,
       ));
     } catch (e) {
-      emit(HomeError('Failed to load home data: $e'));
+      emit(HomeError(e.toString()));
     }
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
-import 'package:mobile/features/sales_rep/data/services/incident_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/incident_cubit.dart';
 
 class ReportIncidentPage extends StatefulWidget {
@@ -199,11 +198,10 @@ class _DropdownField extends StatelessWidget {
   final void Function(String?)? onChanged;
 
   const _DropdownField({
-    Key? key,
     required this.value,
     required this.items,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

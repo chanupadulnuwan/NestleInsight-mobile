@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
-import 'package:mobile/features/sales_rep/data/services/outlet_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/outlet_cubit.dart';
 
 class RegisterOutletPage extends StatefulWidget {

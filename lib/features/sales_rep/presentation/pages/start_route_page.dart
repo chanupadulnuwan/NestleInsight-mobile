@@ -1017,7 +1017,7 @@ class _WarehouseDropdown extends StatelessWidget {
               )
             : const Icon(Icons.warehouse_outlined),
       ),
-      items: warehouses.length > 0
+      items: warehouses.isNotEmpty
           ? warehouses.map((warehouse) {
               return DropdownMenuItem(
                 value: warehouse.id,
@@ -1042,7 +1042,7 @@ class _WarehouseDropdown extends StatelessWidget {
             ? 'Loading warehouses...'
             : 'Select a territory first',
       ),
-      value: selectedWarehouseId,
+      initialValue: selectedWarehouseId,
       onChanged: isDisabled
           ? null
           : (value) {

@@ -83,7 +83,9 @@ class SalesRoute {
 
   factory SalesRoute.fromJson(Map<String, dynamic> json) {
     final rawVanLoadRequest =
-        json['vanLoadRequest'] ?? json['loadRequest'] ?? json['van_load_request'];
+        json['vanLoadRequest'] ??
+        json['loadRequest'] ??
+        json['van_load_request'];
 
     return SalesRoute(
       id: (json['id'] ?? '').toString(),
@@ -94,8 +96,10 @@ class SalesRoute {
       vanLoadRequest: rawVanLoadRequest is Map<String, dynamic>
           ? VanLoadRequest.fromJson(rawVanLoadRequest)
           : rawVanLoadRequest is Map
-              ? VanLoadRequest.fromJson(Map<String, dynamic>.from(rawVanLoadRequest))
-              : null,
+          ? VanLoadRequest.fromJson(
+              Map<String, dynamic>.from(rawVanLoadRequest),
+            )
+          : null,
     );
   }
 }
@@ -235,7 +239,8 @@ class RouteService {
       final data = response.data ?? {};
       return RouteActionResponse(
         message:
-            data['message'] as String? ?? 'Load request submitted successfully.',
+            data['message'] as String? ??
+            'Load request submitted successfully.',
       );
     } on DioException catch (error) {
       throw RouteServiceException(

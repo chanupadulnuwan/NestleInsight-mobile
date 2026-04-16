@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:mobile/core/network/dio_client.dart';
+// 1. FIX: Changed to a relative import so it works no matter what your project is named!
+import '../../../../core/network/dio_client.dart';
 
 class OutletServiceException implements Exception {
   const OutletServiceException(this.message, {this.code});
@@ -65,7 +66,10 @@ class OutletService {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        final outlet = Outlet.fromJson(response.data);
+        // 2. FIX: Explicitly cast the dynamic response to a Map to satisfy Flutter's strict mode
+        final responseData = response.data as Map<String, dynamic>;
+        final outlet = Outlet.fromJson(responseData);
+
         return OutletRegistrationResult(
           message: 'Outlet registered successfully and is pending approval',
           outlet: outlet,
@@ -76,10 +80,14 @@ class OutletService {
         'Failed to register outlet: ${response.statusCode}',
       );
     } on DioException catch (e) {
+      // 3. FIX: Safely parse the dynamic error message without angering the type checker
+      final errorData = e.response?.data;
+      final errorMessage = errorData is Map<String, dynamic>
+          ? errorData['message']
+          : null;
+
       throw OutletServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Failed to register outlet',
+        errorMessage?.toString() ?? e.message ?? 'Failed to register outlet',
       );
     } catch (e) {
       throw OutletServiceException('An unexpected error occurred: $e');

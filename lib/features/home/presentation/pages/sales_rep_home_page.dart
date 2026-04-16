@@ -9,10 +9,17 @@ import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_pag
 import 'package:mobile/features/sales_rep/presentation/pages/store_visit_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/daily_report_page.dart';
-
+import 'package:mobile/features/sales_rep/presentation/pages/outlet_visit_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/returning_products_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/smart_route_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/upload_report_page.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/visit_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/outlet_visit_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/sales_return_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/upload_report_cubit.dart';
 
 class SalesRepHomePage extends StatelessWidget {
   const SalesRepHomePage({super.key});
@@ -339,14 +346,20 @@ class SalesRepHomePage extends StatelessWidget {
             color: AppTheme.kOrange,
             isLocked: !hasRoute,
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const StoreVisitPage(
-                    routeId: '00000000-0000-0000-0000-000000000001',
-                    territoryId: '00000000-0000-0000-0000-000000000001',
+              if (state.activeRouteId != null && state.activeTerritoryId != null) {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => OutletVisitPage(
+                      routeId: state.activeRouteId!,
+                      territoryId: state.activeTerritoryId!,
+                    ),
                   ),
-                ),
-              );
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Missing route or territory details')),
+                );
+              }
             },
           ),
           _buildActionCard(
@@ -359,7 +372,8 @@ class SalesRepHomePage extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => const ReportIncidentPage(
-                    routeId: '00000000-0000-0000-0000-000000000001',
+                    // REPLACE THIS ID TOO
+                    routeId: 'c2c3cf28-1a37-47e1-a418-581cf1d44d47',
                     territoryId: '00000000-0000-0000-0000-000000000001',
                   ),
                 ),
@@ -376,40 +390,93 @@ class SalesRepHomePage extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => const DailyReportPage(
-                    routeId: '00000000-0000-0000-0000-000000000001',
+                    // REPLACE THIS ID TOO
+                    routeId: 'c2c3cf28-1a37-47e1-a418-581cf1d44d47',
                     territoryId: '00000000-0000-0000-0000-000000000001',
                   ),
                 ),
               );
             },
           ),
+          // Smart Route — always unlocked
           _buildActionCard(
             context: context,
             title: 'Smart Route',
             icon: Icons.map,
             color: AppTheme.kBrown,
             isLocked: false,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => BlocProvider(
+                  create: (_) => VisitCubit(),
+                  child: const SmartRoutePage(),
+                )),
+              );
+            },
           ),
+
+          // Outlet Visit — requires active route
           _buildActionCard(
             context: context,
             title: 'Outlet Visit',
             icon: Icons.store,
             color: AppTheme.kBrown,
-            isLocked: !hasRoute, // Locked if no route is active
+            isLocked: !hasRoute,
+            onTap: () {
+              final routeId = state.activeRouteId ?? '';
+              final territoryId = state.activeTerritoryId ?? '';
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MultiBlocProvider(
+                    providers: [
+                      BlocProvider(create: (_) => VisitCubit()),
+                      BlocProvider(create: (_) => OutletVisitCubit()..loadOutlets()),
+                    ],
+                    child: OutletVisitPage(routeId: routeId, territoryId: territoryId),
+                  ),
+                ),
+              );
+            },
           ),
+
+          // Returning Products — requires active route
           _buildActionCard(
             context: context,
             title: 'Returning Products',
             icon: Icons.assignment_return,
             color: AppTheme.kBrown,
-            isLocked: !hasRoute, // Locked if no route is active
+            isLocked: !hasRoute,
+            onTap: () {
+              final routeId = state.activeRouteId ?? '';
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BlocProvider(
+                    create: (_) => SalesReturnCubit(),
+                    child: ReturningProductsPage(routeId: routeId),
+                  ),
+                ),
+              );
+            },
           ),
+
+          // Uploads / Daily Report — always unlocked
           _buildActionCard(
             context: context,
             title: 'Uploads / Daily Report',
             icon: Icons.cloud_upload,
             color: AppTheme.kBrown,
             isLocked: false,
+            onTap: () {
+              final routeId = state.activeRouteId ?? '';
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BlocProvider(
+                    create: (_) => UploadReportCubit()..loadMyReports(),
+                    child: UploadReportPage(routeId: routeId),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

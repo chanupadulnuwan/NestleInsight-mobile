@@ -1,37 +1,15 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:mobile/features/sales_rep/data/services/outlet_service.dart';
 
-abstract class OutletState {}
+import '../../data/services/outlet_service.dart';
 
-class OutletInitial extends OutletState {}
-
-class OutletLoading extends OutletState {}
-
-class OutletLoaded extends OutletState {
-  OutletLoaded(this.outlet);
-
-  final Outlet outlet;
-}
-
-class OutletError extends OutletState {
-  OutletError(this.message);
-
-  final String message;
-}
-
-class OutletSuccess extends OutletState {
-  OutletSuccess(this.message, this.outlet);
-
-  final String message;
-  final Outlet outlet;
-}
+part 'outlet_state.dart';
 
 class OutletCubit extends Cubit<OutletState> {
+  final OutletService _outletService;
+
   OutletCubit({OutletService? outletService})
     : _outletService = outletService ?? OutletService(),
       super(OutletInitial());
-
-  final OutletService _outletService;
 
   Future<bool> registerOutlet({
     required String name,
@@ -57,8 +35,13 @@ class OutletCubit extends Cubit<OutletState> {
 
       emit(OutletSuccess(result.message, result.outlet));
       return true;
-    } on OutletServiceException catch (error) {
-      emit(OutletError(error.message));
+    } catch (error) {
+      // The Ultimate Failsafe Catch
+      final errorMessage = error is OutletServiceException
+          ? error.message
+          : 'Failed to connect to server: $error';
+
+      emit(OutletError(errorMessage));
       return false;
     }
   }
