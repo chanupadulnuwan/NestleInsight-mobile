@@ -102,7 +102,12 @@ class OrderService {
     }
   }
 
-  Future<OrderCreateResult> placeOrder(List<ShopCartItem> items) async {
+  Future<OrderCreateResult> placeOrder(
+    List<ShopCartItem> items, {
+    String? appliedPromotionId,
+    String? appliedPromotionCode,
+    double? discountAmount,
+  }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/orders',
@@ -115,6 +120,9 @@ class OrderService {
                 },
               )
               .toList(),
+          if (appliedPromotionId != null) 'appliedPromotionId': appliedPromotionId,
+          if (appliedPromotionCode != null) 'appliedPromotionCode': appliedPromotionCode,
+          if (discountAmount != null) 'discountAmount': discountAmount,
         },
       );
 

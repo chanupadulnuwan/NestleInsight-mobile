@@ -17,8 +17,13 @@ class OutletVisitOutletsLoaded extends OutletVisitState {
 
 class OutletVisitInProgress extends OutletVisitState {
   final StoreVisit visit;
+  final String routeId;
   final TerritoryOutlet? selectedOutlet;
-  OutletVisitInProgress({required this.visit, this.selectedOutlet});
+  OutletVisitInProgress({
+    required this.visit,
+    required this.routeId,
+    this.selectedOutlet,
+  });
 }
 
 class OutletVisitCompleted extends OutletVisitState {
@@ -97,7 +102,13 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
         territoryId: territoryId,
       );
 
-      emit(OutletVisitInProgress(visit: res.visit, selectedOutlet: outlet));
+      emit(
+        OutletVisitInProgress(
+          visit: res.visit,
+          routeId: routeId,
+          selectedOutlet: outlet,
+        ),
+      );
     } on VisitServiceException catch (e) {
       emit(OutletVisitError(e.message));
     } catch (e) {

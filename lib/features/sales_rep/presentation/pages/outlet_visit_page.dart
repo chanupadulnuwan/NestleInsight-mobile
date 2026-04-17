@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/place_order_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/order_page.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../cubit/outlet_visit_cubit.dart';
@@ -270,6 +272,7 @@ class _InProgressFormContentState extends State<_InProgressFormContent> {
   @override
   Widget build(BuildContext context) {
     final outletName = widget.state.selectedOutlet?.outletName ?? widget.state.visit.shopNameSnapshot;
+    final canPlaceAssistedOrder = widget.state.selectedOutlet != null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -297,6 +300,32 @@ class _InProgressFormContentState extends State<_InProgressFormContent> {
             ),
           ),
           const SizedBox(height: 24),
+          if (canPlaceAssistedOrder) ...[
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => BlocProvider(
+                      create: (_) => PlaceOrderCubit(),
+                      child: OrderPage(
+                        routeId: widget.state.routeId,
+                        shopId: widget.state.selectedOutlet!.id,
+                        shopName: outletName,
+                      ),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.shopping_cart_checkout),
+              label: const Text('Place Assisted Order'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primaryBrownDark,
+                side: const BorderSide(color: AppTheme.primaryBrown),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
           const Text('OSA Notes', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
           const SizedBox(height: 8),
           TextField(

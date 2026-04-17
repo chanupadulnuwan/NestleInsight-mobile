@@ -14,12 +14,14 @@ class StoreVisit {
     required this.shopNameSnapshot,
     required this.status,
     required this.visitStartedAt,
+    this.photoUrls,
   });
 
   final String id;
   final String shopNameSnapshot;
   final String status;
   final DateTime visitStartedAt;
+  final List<String>? photoUrls;
 
   factory StoreVisit.fromJson(Map<String, dynamic> json) {
     return StoreVisit(
@@ -29,6 +31,9 @@ class StoreVisit {
       visitStartedAt: json['visitStartedAt'] is String
           ? DateTime.parse(json['visitStartedAt'])
           : DateTime.now(),
+      photoUrls: (json['photoUrls'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
     );
   }
 }
@@ -132,6 +137,37 @@ class VisitService {
     } on DioException catch (e) {
       throw VisitServiceException(
         e.response?.data?['message'] ?? e.message ?? 'Failed to complete visit',
+      );
+    } catch (e) {
+      throw VisitServiceException('An unexpected error occurred: $e');
+    }
+  }
+
+  Future<void> uploadVisitPhoto({
+    required String visitId,
+    required String filePath,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'image': await MultipartFile.fromFile(
+          filePath,
+          filename: 'visit_photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      });
+
+      final response = await _dio.post(
+        '/store-visits/$visitId/photos',
+        data: formData,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw VisitServiceException(
+          'Failed to upload photo: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      throw VisitServiceException(
+        e.response?.data?['message'] ?? e.message ?? 'Failed to upload photo',
       );
     } catch (e) {
       throw VisitServiceException('An unexpected error occurred: $e');

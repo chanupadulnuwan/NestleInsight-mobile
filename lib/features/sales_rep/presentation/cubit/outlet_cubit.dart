@@ -19,6 +19,7 @@ class OutletCubit extends Cubit<OutletState> {
     required String address,
     required double latitude,
     required double longitude,
+    required String territoryId,
   }) async {
     emit(OutletLoading());
 
@@ -31,6 +32,7 @@ class OutletCubit extends Cubit<OutletState> {
         address: address,
         latitude: latitude,
         longitude: longitude,
+        territoryId: '',
       );
 
       emit(OutletSuccess(result.message, result.outlet));

@@ -100,4 +100,22 @@ class VisitCubit extends Cubit<VisitState> {
       return false;
     }
   }
+
+  Future<bool> uploadPhoto({
+    required String visitId,
+    required String filePath,
+  }) async {
+    // Keep internal local loading if we want, but for now just pass through
+    try {
+      await _visitService.uploadVisitPhoto(
+        visitId: visitId,
+        filePath: filePath,
+      );
+      // Optional: Refresh visit state if we want to show the new URL immediately
+      return true;
+    } on VisitServiceException catch (error) {
+      emit(VisitError(error.message));
+      return false;
+    }
+  }
 }

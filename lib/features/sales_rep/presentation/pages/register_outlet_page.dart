@@ -56,6 +56,7 @@ class _RegisterOutletPageState extends State<RegisterOutletPage> {
       address: _addressController.text,
       latitude: mockLatitude,
       longitude: mockLongitude,
+      territoryId: widget.territoryId,
     );
   }
 

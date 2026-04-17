@@ -50,6 +50,7 @@ class OutletService {
     required String address,
     required double latitude,
     required double longitude,
+    required String territoryId, // 👈 ADDED THIS
   }) async {
     try {
       final response = await _dio.post(
@@ -57,11 +58,12 @@ class OutletService {
         data: {
           'outletName': name,
           'ownerName': owner,
-          'ownerPhone': phone,
+          'contactNumber': phone, // 👈 CHANGED from ownerPhone to contactNumber
           'ownerEmail': email,
           'address': address,
           'latitude': latitude,
           'longitude': longitude,
+          'territoryId': territoryId, // 👈 ADDED THIS
         },
       );
 

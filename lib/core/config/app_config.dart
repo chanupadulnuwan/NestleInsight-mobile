@@ -12,14 +12,14 @@ class AppConfig {
     }
 
     if (kIsWeb) {
-      return 'https://backend.obscuranet.it.com';
+      return 'http://localhost:3000';
     }
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return 'https://backend.obscuranet.it.com';
+        return 'http://localhost:3000';
       default:
-        return 'https://backend.obscuranet.it.com';
+        return 'http://localhost:3000';
     }
   }
 

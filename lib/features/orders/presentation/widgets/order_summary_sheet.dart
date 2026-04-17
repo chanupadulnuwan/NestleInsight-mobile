@@ -9,20 +9,23 @@ class OrderSummarySheet extends StatelessWidget {
     required this.items,
     required this.isTablet,
     required this.isSubmitting,
+    required this.subtotal,
+    required this.discountAmount,
+    required this.totalAmount,
     required this.onConfirm,
   });
 
   final List<ShopCartItem> items;
   final bool isTablet;
   final bool isSubmitting;
+  final double subtotal;
+  final double discountAmount;
+  final double totalAmount;
   final Future<void> Function() onConfirm;
 
   @override
   Widget build(BuildContext context) {
-    final total = items.fold<double>(
-      0,
-      (sum, item) => sum + item.lineTotal,
-    );
+    final hasDiscount = discountAmount > 0;
 
     return SafeArea(
       child: Padding(
@@ -151,24 +154,42 @@ class OrderSummarySheet extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceTint,
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.outlineWarm.withAlpha(100)),
                   ),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          'Total',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppTheme.textDark,
-                            fontWeight: FontWeight.w700,
-                          ),
+                  child: Column(
+                    children: [
+                      _SummaryPriceRow(label: 'Subtotal', value: subtotal),
+                      if (hasDiscount) ...[
+                        const SizedBox(height: 8),
+                        _SummaryPriceRow(
+                          label: 'Promo Discount',
+                          value: -discountAmount,
+                          valueColor: Colors.red,
                         ),
+                      ],
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Divider(height: 1),
                       ),
-                      Text(
-                        _formatCurrency(total),
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: AppTheme.primaryBrownDark,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              'Grand Total',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: AppTheme.textDark,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          Text(
+                            _formatCurrency(totalAmount),
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: AppTheme.primaryBrownDark,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -212,6 +233,36 @@ class OrderSummarySheet extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SummaryPriceRow extends StatelessWidget {
+  const _SummaryPriceRow({required this.label, required this.value, this.valueColor});
+
+  final String label;
+  final double value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textSoft),
+          ),
+        ),
+        Text(
+          _formatCurrency(value),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? AppTheme.textDark,
+          ),
+        ),
+      ],
     );
   }
 }

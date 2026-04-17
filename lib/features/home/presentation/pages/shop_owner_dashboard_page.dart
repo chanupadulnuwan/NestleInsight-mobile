@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/features/activity/data/services/activity_feed_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/activity/presentation/widgets/feedback_sheet.dart';
@@ -15,6 +16,8 @@ import 'package:mobile/features/orders/presentation/widgets/cart_side_sheet.dart
 import 'package:mobile/features/orders/presentation/widgets/order_summary_sheet.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
 import 'package:mobile/features/profile/presentation/widgets/shop_owner_profile_sheet.dart';
+import 'package:mobile/features/promotions/data/services/promotion_service.dart';
+import 'package:mobile/features/promotions/presentation/cubit/promotion_cubit.dart';
 import 'package:mobile/features/settings/presentation/widgets/change_password_sheet.dart';
 
 class ShopOwnerDashboardPage extends StatefulWidget {
@@ -35,11 +38,14 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   late DateTime _currentTime;
   Timer? _greetingTimer;
   int _selectedIndex = 0;
+  String _territoryId = '';
+  late PromotionCubit _promotionCubit;
 
   @override
   void initState() {
     super.initState();
     _profile = ShopOwnerProfile.fromJson(widget.user);
+    _territoryId = widget.user?['territoryId']?.toString() ?? '';
     _currentTime = DateTime.now();
 
     _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -52,6 +58,11 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
       });
     });
 
+    _promotionCubit = PromotionCubit(
+      territoryId: _territoryId,
+      service: PromotionService(),
+    )..loadPromotions();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _dashboardController.loadCatalog();
       _dashboardController.loadOrders();
@@ -63,6 +74,7 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   void dispose() {
     _greetingTimer?.cancel();
     _dashboardController.dispose();
+    _promotionCubit.close();
     super.dispose();
   }
 
@@ -184,6 +196,9 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
           builder: (_, _) {
             return OrderSummarySheet(
               items: _dashboardController.cartItems,
+              subtotal: _dashboardController.cartSubtotal,
+              discountAmount: _dashboardController.promoDiscount,
+              totalAmount: _dashboardController.cartTotal,
               isTablet: isTablet,
               isSubmitting: _dashboardController.isPlacingOrder,
               onConfirm: () async {
@@ -219,115 +234,111 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
       barrierLabel: 'Cart',
       barrierColor: Colors.black.withAlpha(40),
       pageBuilder: (dialogContext, _, _) {
-        return Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => Navigator.of(dialogContext).pop(),
-                child: const SizedBox.expand(),
+        return BlocProvider.value(
+          value: _promotionCubit,
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(dialogContext).pop(),
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ),
-            CartSideSheet(
-              controller: _dashboardController,
-              isTablet: isTablet,
-              onClose: () => Navigator.of(dialogContext).pop(),
-              onProceedOrder: () async {
-                Navigator.of(dialogContext).pop();
-                await _openOrderSummary();
-              },
-              onUsePreviousOrder: (order) async {
-                final shouldReplace = await showDialog<bool>(
-                  context: dialogContext,
-                  builder: (context) {
-                    return Dialog(
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Replace current cart?',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(
-                                    color: AppTheme.textDark,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'This will order the same previous order and replace the current cart items. Do you want to continue?',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: AppTheme.textSoft),
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed: () => Navigator.of(context).pop(true),
-                                child: const Text('Replace cart'),
-                              ),
-                            ),
-                          ],
+              CartSideSheet(
+                controller: _dashboardController,
+                isTablet: isTablet,
+                onClose: () => Navigator.of(dialogContext).pop(),
+                onProceedOrder: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _openOrderSummary();
+                },
+                onUsePreviousOrder: (order) async {
+                  final shouldReplace = await showDialog<bool>(
+                    context: dialogContext,
+                    builder: (context) {
+                      return Dialog(
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
                         ),
-                      ),
-                    );
-                  },
-                );
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Replace current cart?',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      color: AppTheme.textDark,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'This will order the same previous order and replace the current cart items. Do you want to continue?',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: AppTheme.textSoft),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text('Replace cart'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
 
-                if (shouldReplace == true) {
-                  final result = _dashboardController.replaceCartWithOrder(order);
-                  if (result.addedCount == 0 &&
-                      result.unavailableProductNames.isNotEmpty) {
-                    _showMessage(
-                      'Previous order items are currently unavailable.',
+                  if (shouldReplace == true) {
+                    final result = _dashboardController.replaceCartWithOrder(
+                      order,
                     );
-                    return;
+                    if (result.addedCount == 0 &&
+                        result.unavailableProductNames.isNotEmpty) {
+                      _showMessage(
+                        'Previous order items are currently unavailable.',
+                      );
+                      return;
+                    }
+
+                    if (result.hasUnavailableProducts) {
+                      _showMessage(
+                        'Added available items only. Currently unavailable: ${result.unavailableProductNames.join(', ')}',
+                      );
+                      return;
+                    }
+
+                    _showMessage('Cart replaced with the previous order.');
                   }
-
-                  if (result.hasUnavailableProducts) {
-                    _showMessage(
-                      'Added available items only. Currently unavailable: ${result.unavailableProductNames.join(', ')}',
-                    );
-                    return;
-                  }
-
-                  _showMessage('Cart replaced with the previous order.');
-                }
-              },
-            ),
-          ],
+                },
+              ),
+            ],
+          ),
         );
       },
-      transitionBuilder: (
-        context,
-        animation,
-        secondaryAnimation,
-        child,
-      ) {
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
         return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-          ),
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         );
       },
@@ -378,92 +389,98 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isTablet = constraints.maxWidth >= 700;
-        final horizontalPadding = isTablet ? 28.0 : 14.0;
-        final contentBottomPadding = isTablet ? 180.0 : 164.0;
+    return BlocProvider.value(
+      value: _promotionCubit,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth >= 700;
+          final horizontalPadding = isTablet ? 28.0 : 14.0;
+          final contentBottomPadding = isTablet ? 180.0 : 164.0;
 
-        return AnimatedBuilder(
-          animation: _dashboardController,
-          builder: (context, _) {
-            return Scaffold(
-              backgroundColor: Colors.white,
-              floatingActionButtonLocation:
-                  FloatingActionButtonLocation.startFloat,
-              floatingActionButton: Padding(
-                padding: EdgeInsets.only(left: isTablet ? 10 : 2, bottom: 14),
-                child: FilledButton.icon(
-                  onPressed: _openFeedbackSheet,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBrownDark,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 48),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isTablet ? 16 : 14,
-                      vertical: 12,
+          return AnimatedBuilder(
+            animation: _dashboardController,
+            builder: (context, _) {
+              return Scaffold(
+                backgroundColor: Colors.white,
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.startFloat,
+                floatingActionButton: Padding(
+                  padding: EdgeInsets.only(left: isTablet ? 10 : 2, bottom: 14),
+                  child: FilledButton.icon(
+                    onPressed: _openFeedbackSheet,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.primaryBrownDark,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 16 : 14,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 17),
+                    label: Text(
+                      'Feedback',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  icon: const Icon(Icons.chat_bubble_outline, size: 17),
-                  label: Text(
-                    'Feedback',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              bottomNavigationBar: _BottomBar(
-                isTablet: isTablet,
-                selectedIndex: _selectedIndex,
-                onTap: _handleBottomNavTap,
-              ),
-              body: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[Colors.white, Color(0xFFFFFCF8)],
                   ),
                 ),
-                child: SafeArea(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      10,
-                      horizontalPadding,
-                      contentBottomPadding,
+                bottomNavigationBar: _BottomBar(
+                  isTablet: isTablet,
+                  selectedIndex: _selectedIndex,
+                  onTap: _handleBottomNavTap,
+                ),
+                // FIX 2 & 3: Removed the stray `);` that was inside the
+                // Container's child expression, and closed all widgets properly.
+                body: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[Colors.white, Color(0xFFFFFCF8)],
                     ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: isTablet ? 980 : 620,
-                        ),
-                        child: _TabBody(
-                          selectedIndex: _selectedIndex,
-                          isTablet: isTablet,
-                          profile: _profile,
-                          greetingText: _greetingText,
-                          controller: _dashboardController,
-                          onProfileTap: _openProfileSheet,
-                          onCartTap: () => _showCartSideSheet(isTablet),
-                          onProceedOrderTap: _openOrderSummary,
-                          onSecurityTap: _openChangePasswordSheet,
-                          onShowMessage: _showMessage,
+                  ),
+                  child: SafeArea(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        10,
+                        horizontalPadding,
+                        contentBottomPadding,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isTablet ? 980 : 620,
+                          ),
+                          child: _TabBody(
+                            selectedIndex: _selectedIndex,
+                            isTablet: isTablet,
+                            profile: _profile,
+                            greetingText: _greetingText,
+                            controller: _dashboardController,
+                            territoryId: _territoryId,
+                            onProfileTap: _openProfileSheet,
+                            onCartTap: () => _showCartSideSheet(isTablet),
+                            onProceedOrderTap: _openOrderSummary,
+                            onSecurityTap: _openChangePasswordSheet,
+                            onShowMessage: _showMessage,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -475,6 +492,7 @@ class _TabBody extends StatelessWidget {
     required this.profile,
     required this.greetingText,
     required this.controller,
+    required this.territoryId,
     required this.onProfileTap,
     required this.onCartTap,
     required this.onProceedOrderTap,
@@ -487,6 +505,7 @@ class _TabBody extends StatelessWidget {
   final ShopOwnerProfile profile;
   final String greetingText;
   final ShopOwnerDashboardController controller;
+  final String territoryId;
   final VoidCallback onProfileTap;
   final VoidCallback onCartTap;
   final VoidCallback onProceedOrderTap;
@@ -503,10 +522,7 @@ class _TabBody extends StatelessWidget {
           onCartTap: onCartTap,
         );
       case 2:
-        return ShopOwnerActivityTab(
-          isTablet: isTablet,
-          controller: controller,
-        );
+        return ShopOwnerActivityTab(isTablet: isTablet, controller: controller);
       case 3:
         return ShopOwnerSettingsTab(
           isTablet: isTablet,
@@ -520,6 +536,7 @@ class _TabBody extends StatelessWidget {
           profile: profile,
           greetingText: greetingText,
           controller: controller,
+          territoryId: territoryId,
           onProfileTap: onProfileTap,
           onProceedOrderTap: onProceedOrderTap,
           onShowMessage: onShowMessage,
@@ -584,13 +601,19 @@ class _BottomBar extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(items[index].icon, color: color, size: isTablet ? 28 : 24),
+                    Icon(
+                      items[index].icon,
+                      color: color,
+                      size: isTablet ? 28 : 24,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       items[index].label,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: color,
-                        fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: isActive
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         fontSize: isTablet ? 13 : 11,
                       ),
                     ),

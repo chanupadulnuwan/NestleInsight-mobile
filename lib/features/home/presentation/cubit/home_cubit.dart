@@ -41,7 +41,8 @@ class HomeCubit extends Cubit<HomeState> {
         final routeData = resRoute.data ?? {};
         final actualRoute = routeData['route'] ?? {};
 
-        hasActiveRoute = actualRoute['status'] == 'IN_PROGRESS';
+        final status = actualRoute['status']?.toString().toUpperCase();
+        hasActiveRoute = status == 'ACTIVE' || status == 'IN_PROGRESS';
         activeRouteId = actualRoute['id']?.toString();
         activeTerritoryId = actualRoute['territoryId']?.toString();
       } catch (e) {

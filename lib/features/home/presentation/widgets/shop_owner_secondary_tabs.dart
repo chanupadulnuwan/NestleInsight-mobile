@@ -570,8 +570,11 @@ class _ActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orderCode = activity.metadata?['orderCode']?.toString();
+    final pin = activity.metadata?['pin']?.toString();
     final placedAtRaw = activity.metadata?['placedAt']?.toString();
+    final expiresAtRaw = activity.metadata?['expiresAt']?.toString();
     final placedAt = placedAtRaw == null ? null : DateTime.tryParse(placedAtRaw);
+    final expiresAt = expiresAtRaw == null ? null : DateTime.tryParse(expiresAtRaw);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -604,6 +607,48 @@ class _ActivityCard extends StatelessWidget {
               color: AppTheme.textSoft,
             ),
           ),
+          if (pin != null && pin.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceTint,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.outlineWarm),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Confirmation PIN',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSoft,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    pin,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppTheme.primaryBrownDark,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  if (expiresAt != null) ...<Widget>[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Share before ${_formatTime(expiresAt.toLocal())} on ${_formatDate(expiresAt.toLocal())}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -616,6 +661,10 @@ class _ActivityCard extends StatelessWidget {
               if (placedAt != null)
                 _ActivityMetaChip(
                   label: 'Placed: ${_formatDate(placedAt.toLocal())}',
+                ),
+              if (expiresAt != null)
+                _ActivityMetaChip(
+                  label: 'Expires: ${_formatTime(expiresAt.toLocal())}',
                 ),
             ],
           ),

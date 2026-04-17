@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/sales_rep/data/services/visit_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/visit_cubit.dart';
@@ -26,6 +27,8 @@ class _StoreVisitPageState extends State<StoreVisitPage> {
 
   bool _planogramOk = false;
   bool _posmOk = false;
+  final List<String> _localPhotoPaths = [];
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -79,6 +82,32 @@ class _StoreVisitPageState extends State<StoreVisitPage> {
     );
   }
 
+  Future<void> _capturePhoto(String visitId) async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70, 
+      );
+
+      if (photo != null) {
+        setState(() {
+          _localPhotoPaths.add(photo.path);
+        });
+
+        _visitCubit.uploadPhoto(
+          visitId: visitId,
+          filePath: photo.path,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to capture photo: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,6 +144,8 @@ class _StoreVisitPageState extends State<StoreVisitPage> {
                 onPosmChanged: (value) {
                   setState(() => _posmOk = value ?? false);
                 },
+                localPhotoPaths: _localPhotoPaths,
+                onCapturePhoto: () => _capturePhoto(state.visit.id),
                 onComplete: () => _completeVisit(state.visit),
               );
             }
@@ -208,6 +239,8 @@ class _InProgressView extends StatelessWidget {
     required this.posmOk,
     required this.onPlanogramChanged,
     required this.onPosmChanged,
+    required this.localPhotoPaths,
+    required this.onCapturePhoto,
     required this.onComplete,
   });
 
@@ -219,6 +252,8 @@ class _InProgressView extends StatelessWidget {
   final bool posmOk;
   final Function(bool?) onPlanogramChanged;
   final Function(bool?) onPosmChanged;
+  final List<String> localPhotoPaths;
+  final VoidCallback onCapturePhoto;
   final VoidCallback onComplete;
 
   @override
@@ -257,6 +292,13 @@ class _InProgressView extends StatelessWidget {
             label: 'POSM OK',
             value: posmOk,
             onChanged: onPosmChanged,
+            enabled: !isLoading,
+          ),
+          _SectionTitle(title: 'Display Evidence'),
+          const SizedBox(height: 12),
+          _PhotoCaptureSection(
+            localPhotoPaths: localPhotoPaths,
+            onCapture: onCapturePhoto,
             enabled: !isLoading,
           ),
           const SizedBox(height: 24),
@@ -377,6 +419,61 @@ class _CheckboxTile extends StatelessWidget {
         value: value,
         onChanged: enabled ? onChanged : null,
       ),
+    );
+  }
+}
+
+class _PhotoCaptureSection extends StatelessWidget {
+  const _PhotoCaptureSection({
+    required this.localPhotoPaths,
+    required this.onCapture,
+    this.enabled = true,
+  });
+
+  final List<String> localPhotoPaths;
+  final VoidCallback onCapture;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (localPhotoPaths.isNotEmpty)
+          SizedBox(
+            height: 100,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: localPhotoPaths.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                return Container(
+                  width: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.outlineWarm),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.image, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: enabled ? onCapture : null,
+          icon: const Icon(Icons.camera_alt),
+          label: const Text('Capture Shelf Photo'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

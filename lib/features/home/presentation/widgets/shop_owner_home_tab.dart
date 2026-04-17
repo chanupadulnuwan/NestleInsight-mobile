@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
+import 'package:mobile/features/promotions/data/services/promotion_service.dart';
+import 'package:mobile/features/promotions/presentation/cubit/promotion_cubit.dart';
+import 'package:mobile/features/promotions/presentation/cubit/promotion_state.dart';
+import 'package:mobile/features/promotions/presentation/pages/shop_promotions_page.dart';
 
 class ShopOwnerHomeTab extends StatelessWidget {
   const ShopOwnerHomeTab({
@@ -12,6 +17,7 @@ class ShopOwnerHomeTab extends StatelessWidget {
     required this.profile,
     required this.greetingText,
     required this.controller,
+    required this.territoryId,
     required this.onProfileTap,
     required this.onProceedOrderTap,
     required this.onShowMessage,
@@ -21,6 +27,7 @@ class ShopOwnerHomeTab extends StatelessWidget {
   final ShopOwnerProfile profile;
   final String greetingText;
   final ShopOwnerDashboardController controller;
+  final String territoryId;
   final VoidCallback onProfileTap;
   final VoidCallback onProceedOrderTap;
   final ValueChanged<String> onShowMessage;
@@ -360,7 +367,8 @@ class _OfferBanner extends StatelessWidget {
         vertical: isTablet ? 22 : 16,
       ),
       decoration: BoxDecoration(
-        // Promotion banner uses a softer muted red so it stays close to the mockup without clashing with the rest of the brown theme.
+        // Promotion banner uses a softer muted red so it stays close to the
+        // mockup without clashing with the rest of the brown theme.
         color: AppTheme.promotionMutedRed,
         borderRadius: BorderRadius.circular(28),
         boxShadow: <BoxShadow>[
@@ -372,13 +380,14 @@ class _OfferBanner extends StatelessWidget {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Limited Time Offer',
+                  'Promotions',
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
@@ -386,25 +395,53 @@ class _OfferBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Buy 5 Cases, Get\n1 Case Free',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: isTablet ? 28 : 18,
-                    height: 1.1,
-                  ),
+                // Subtitle is driven by PromotionCubit state.
+                BlocBuilder<PromotionCubit, PromotionState>(
+                  builder: (context, state) {
+                    final String subtitle;
+                    if (state is PromotionLoading) {
+                      subtitle = 'Fetching deals...';
+                    } else if (state is PromotionLoaded &&
+                        state.firstPromotion != null) {
+                      subtitle = state.firstPromotion!.name;
+                    } else {
+                      subtitle = 'No active deals right now.';
+                    }
+                    return Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: isTablet ? 28 : 18,
+                        height: 1.1,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 12),
           OutlinedButton(
-            onPressed: () {},
+            onPressed: () {
+              // Share the existing cubit so ShopPromotionsPage reuses
+              // already-fetched data without an extra network call.
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BlocProvider.value(
+                    value: context.read<PromotionCubit>(),
+                    child: const ShopPromotionsPage(),
+                  ),
+                ),
+              );
+            },
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
               side: BorderSide(color: Colors.white.withAlpha(180)),
             ),
-            child: const Text('View Deal'),
+            child: const Text('View Deals'),
           ),
         ],
       ),

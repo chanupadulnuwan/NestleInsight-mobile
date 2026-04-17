@@ -9,6 +9,7 @@ class Promotion {
     required this.status,
     required this.startDate,
     required this.endDate,
+    required this.eligibleProductNames,
     this.code,
     this.description,
     this.minQuantity,
@@ -36,6 +37,10 @@ class Promotion {
       status: json['status'] as String? ?? 'draft',
       startDate: _readDateTime(json['startDate']),
       endDate: _readDateTime(json['endDate']),
+      eligibleProductNames: (json['eligibleProductNames'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       createdBy: json['createdBy'] as String?,
       createdAt: _readNullableDateTime(json['createdAt']),
       updatedAt: _readNullableDateTime(json['updatedAt']),
@@ -56,6 +61,7 @@ class Promotion {
   final String status;
   final DateTime startDate;
   final DateTime endDate;
+  final List<String> eligibleProductNames;
   final String? createdBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
