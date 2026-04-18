@@ -95,6 +95,7 @@ class _PromotionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -107,69 +108,63 @@ class _PromotionCard extends StatelessWidget {
           ),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            // Left colour accent bar.
-            Container(
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
               width: 6,
-              decoration: BoxDecoration(
-                color: AppTheme.promotionMutedRed,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  bottomLeft: Radius.circular(24),
-                ),
-              ),
+              color: AppTheme.promotionMutedRed,
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Status chip + offer badge row.
+                Row(
                   children: <Widget>[
-                    // Status chip + offer badge row.
-                    Row(
-                      children: <Widget>[
-                        _StatusChip(isActive: promotion.isActive),
-                        const Spacer(),
-                        _OfferBadge(label: promotion.offerSummary),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    // Promotion name.
-                    Text(
-                      promotion.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                        height: 1.2,
-                      ),
-                    ),
-                    // Description (optional).
-                    if (promotion.description != null &&
-                        promotion.description!.trim().isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 6),
-                      Text(
-                        promotion.description!,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSoft,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    // Date range row.
-                    _DateRangeRow(promotion: promotion),
+                    _StatusChip(isActive: promotion.isActive),
+                    const Spacer(),
+                    _OfferBadge(label: promotion.offerSummary),
                   ],
                 ),
-              ),
+                const SizedBox(height: 10),
+                // Promotion name.
+                Text(
+                  promotion.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    height: 1.2,
+                  ),
+                ),
+                // Description (optional).
+                if (promotion.description != null &&
+                    promotion.description!.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    promotion.description!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSoft,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                // Date range row.
+                _DateRangeRow(promotion: promotion),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

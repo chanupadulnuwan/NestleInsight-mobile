@@ -47,17 +47,19 @@ class _DeliverOrderPageState extends State<DeliverOrderPage> {
     });
     try {
       await _service.requestDeliveryPin(orderId: widget.order.orderId);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _pinSent = true;
           _requestingPin = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _requestingPin = false;
         });
+      }
     }
   }
 
@@ -75,17 +77,19 @@ class _DeliverOrderPageState extends State<DeliverOrderPage> {
     });
     try {
       await _service.completeOrder(orderId: widget.order.orderId, pin: pin);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _success = true;
           _submitting = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _submitting = false;
         });
+      }
     }
   }
 

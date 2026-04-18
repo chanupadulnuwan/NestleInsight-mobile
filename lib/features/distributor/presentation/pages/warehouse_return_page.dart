@@ -86,17 +86,19 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
       await _service.requestWarehouseReturnPin(
         assignmentId: widget.assignmentId,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _pinRequested = true;
           _requestingPin = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _requestingPin = false;
         });
+      }
     }
   }
 
@@ -124,17 +126,19 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
         tmPin: pin,
         items: _items,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _success = true;
           _submitting = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _submitting = false;
         });
+      }
     }
   }
 

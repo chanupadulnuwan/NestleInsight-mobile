@@ -32,7 +32,7 @@ class OutletCubit extends Cubit<OutletState> {
         address: address,
         latitude: latitude,
         longitude: longitude,
-        territoryId: '',
+        territoryId: territoryId,
       );
 
       emit(OutletSuccess(result.message, result.outlet));

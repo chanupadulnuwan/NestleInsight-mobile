@@ -67,6 +67,75 @@ class LatestOrderResult {
   final ShopOrder? order;
 }
 
+class AssistedOrderRequestResult {
+  const AssistedOrderRequestResult({
+    required this.orderId,
+    required this.status,
+    required this.message,
+    required this.requiresPin,
+  });
+
+  factory AssistedOrderRequestResult.fromJson(Map<String, dynamic> json) {
+    final rawOrder = json['order'];
+    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+    final orderId =
+        json['orderId']?.toString() ??
+        orderMap?['id']?.toString() ??
+        json['assistedOrderRequestId']?.toString() ??
+        '';
+    final status = json['status']?.toString() ?? 'PENDING_PIN';
+    final normalizedStatus = status.toUpperCase();
+
+    return AssistedOrderRequestResult(
+      orderId: orderId,
+      status: status,
+      message:
+          json['message'] as String? ??
+          (normalizedStatus == 'DRAFT'
+              ? 'Order request saved as draft.'
+              : 'Confirmation PIN sent to the shop owner.'),
+      requiresPin:
+          json['requiresPin'] == true ||
+          (normalizedStatus != 'DRAFT' && normalizedStatus != 'CONFIRMED'),
+    );
+  }
+
+  final String orderId;
+  final String status;
+  final String message;
+  final bool requiresPin;
+}
+
+class AssistedOrderConfirmationResult {
+  const AssistedOrderConfirmationResult({
+    required this.orderId,
+    required this.orderCode,
+    required this.message,
+  });
+
+  factory AssistedOrderConfirmationResult.fromJson(Map<String, dynamic> json) {
+    final rawOrder = json['order'];
+    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+
+    return AssistedOrderConfirmationResult(
+      orderId:
+          json['orderId']?.toString() ??
+          orderMap?['id']?.toString() ??
+          '',
+      orderCode:
+          json['orderCode']?.toString() ??
+          orderMap?['orderCode']?.toString() ??
+          '',
+      message:
+          json['message'] as String? ?? 'Assisted order confirmed successfully.',
+    );
+  }
+
+  final String orderId;
+  final String orderCode;
+  final String message;
+}
+
 class OrderService {
   OrderService({Dio? dio}) : _dio = dio ?? DioClient.instance.client;
 
@@ -120,9 +189,9 @@ class OrderService {
                 },
               )
               .toList(),
-          if (appliedPromotionId != null) 'appliedPromotionId': appliedPromotionId,
-          if (appliedPromotionCode != null) 'appliedPromotionCode': appliedPromotionCode,
-          if (discountAmount != null) 'discountAmount': discountAmount,
+          'appliedPromotionId': ?appliedPromotionId,
+          'appliedPromotionCode': ?appliedPromotionCode,
+          'discountAmount': ?discountAmount,
         },
       );
 
@@ -136,5 +205,84 @@ class OrderService {
         code: extractBackendErrorCode(error),
       );
     }
+  }
+
+  Future<AssistedOrderRequestResult> requestAssistedOrderResult(
+    String shopId,
+    List<ShopCartItem> items,
+  ) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/orders/rep-request',
+        data: <String, dynamic>{
+          'shopId': shopId,
+          'items': items
+              .map(
+                (item) => <String, dynamic>{
+                  'productId': item.product.id,
+                  'quantity': item.quantity,
+                },
+              )
+              .toList(growable: false),
+        },
+      );
+
+      return AssistedOrderRequestResult.fromJson(
+        response.data ?? <String, dynamic>{},
+      );
+    } on DioException catch (error) {
+      throw OrderServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to submit the assisted order request.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
+  Future<String> requestAssistedOrder(
+    String shopId,
+    List<ShopCartItem> items,
+  ) async {
+    final result = await requestAssistedOrderResult(shopId, items);
+    return result.orderId;
+  }
+
+  Future<AssistedOrderConfirmationResult> confirmAssistedOrderResult(
+    String orderId,
+    String pin,
+    String reason,
+  ) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/orders/rep-confirm',
+        data: <String, dynamic>{
+          'orderId': orderId,
+          'pin': pin,
+          'assistedReason': reason,
+        },
+      );
+
+      return AssistedOrderConfirmationResult.fromJson(
+        response.data ?? <String, dynamic>{},
+      );
+    } on DioException catch (error) {
+      throw OrderServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to confirm the assisted order.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
+  Future<void> confirmAssistedOrder(
+    String orderId,
+    String pin,
+    String reason,
+  ) async {
+    await confirmAssistedOrderResult(orderId, pin, reason);
   }
 }

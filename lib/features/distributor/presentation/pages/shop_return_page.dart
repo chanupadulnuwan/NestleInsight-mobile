@@ -107,17 +107,19 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
     });
     try {
       await _service.requestShopReturnPin(orderId: widget.order.orderId);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _pinSent = true;
           _requestingPin = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _requestingPin = false;
         });
+      }
     }
   }
 
@@ -148,17 +150,19 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
         pin: pin,
         items: _items,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _success = true;
           _submitting = false;
         });
+      }
     } on DistributorServiceException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _submitting = false;
         });
+      }
     }
   }
 

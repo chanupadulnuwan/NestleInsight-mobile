@@ -3,7 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/home/data/services/product_catalog_service.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
-import 'package:mobile/features/sales_rep/presentation/cubit/place_order_cubit.dart';
+import 'package:mobile/features/orders/domain/shop_cart_item.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/rep_order_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/widgets/pin_confirmation_dialog.dart';
+
+import 'order_success_screen.dart';
 
 class OrderPage extends StatefulWidget {
   const OrderPage({
@@ -24,26 +28,16 @@ class OrderPage extends StatefulWidget {
 class _OrderPageState extends State<OrderPage> {
   final ProductCatalogService _productCatalogService = ProductCatalogService();
   final Map<String, int> _cart = <String, int>{};
-  final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _reasonController = TextEditingController();
 
   List<ShopCatalogProduct> _products = const <ShopCatalogProduct>[];
   bool _isLoadingCatalog = true;
+  bool _isPinDialogOpen = false;
   String? _catalogError;
-  String? _assistedOrderRequestId;
-  DateTime? _pinExpiresAt;
 
   @override
   void initState() {
     super.initState();
     _loadCatalog();
-  }
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    _reasonController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadCatalog() async {
@@ -90,12 +84,35 @@ class _OrderPageState extends State<OrderPage> {
       if (product == null) {
         return sum;
       }
+
       return sum + (product.orderPrice * entry.value);
     });
   }
 
   int get _cartItemCount =>
       _cart.values.fold<int>(0, (sum, quantity) => sum + quantity);
+
+  List<ShopCartItem> _buildCartItems() {
+    final productsById = <String, ShopCatalogProduct>{
+      for (final product in _products) product.id: product,
+    };
+
+    return _cart.entries
+        .map((entry) {
+          final product = productsById[entry.key];
+          if (product == null) {
+            return null;
+          }
+
+          return ShopCartItem(product: product, quantity: entry.value);
+        })
+        .whereType<ShopCartItem>()
+        .toList(growable: false);
+  }
+
+  void _syncCubitCart() {
+    context.read<RepOrderCubit>().syncCartItems(_buildCartItems());
+  }
 
   void _updateQuantity(String productId, int nextQuantity) {
     setState(() {
@@ -105,46 +122,107 @@ class _OrderPageState extends State<OrderPage> {
         _cart[productId] = nextQuantity.clamp(1, 99);
       }
     });
+    _syncCubitCart();
   }
 
-  void _resetPinStep() {
-    context.read<PlaceOrderCubit>().reset();
+  Future<void> _submitOrderRequest() async {
+    _syncCubitCart();
+    await context.read<RepOrderCubit>().submitOrderRequest(widget.shopId);
+  }
+
+  Future<void> _openPinDialog(String orderId) async {
+    if (_isPinDialogOpen) {
+      return;
+    }
+
     setState(() {
-      _assistedOrderRequestId = null;
-      _pinExpiresAt = null;
-      _pinController.clear();
-      _reasonController.clear();
+      _isPinDialogOpen = true;
     });
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => BlocProvider.value(
+        value: context.read<RepOrderCubit>(),
+        child: PinConfirmationDialog(
+          orderId: orderId,
+          shopName: widget.shopName,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {
+        _isPinDialogOpen = false;
+      });
+    }
+  }
+
+  Future<void> _handleSuccess(RepOrderSuccess state) async {
+    final totalAmount = _cartTotal;
+
+    if (_isPinDialogOpen) {
+      Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        setState(() {
+          _isPinDialogOpen = false;
+        });
+      }
+    }
+
+    setState(() {
+      _cart.clear();
+    });
+    context.read<RepOrderCubit>().reset();
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => OrderSuccessScreen(
+          orderId: state.orderId,
+          orderCode: state.orderCode,
+          shopName: widget.shopName,
+          assistedReason: state.assistedReason,
+          totalAmount: totalAmount,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<PlaceOrderCubit, PlaceOrderState>(
-      listener: (context, state) {
-        if (state is PlaceOrderAwaitingPin) {
-          setState(() {
-            _assistedOrderRequestId = state.assistedOrderRequestId;
-            _pinExpiresAt = state.expiresAt;
-          });
+    return BlocListener<RepOrderCubit, RepOrderState>(
+      listener: (context, state) async {
+        if (state is RepOrderPendingPin) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.message),
               backgroundColor: AppTheme.proceedOrderOlive,
             ),
           );
-        } else if (state is PlaceOrderDraftSaved) {
+          await _openPinDialog(state.orderId);
+          return;
+        }
+
+        if (state is RepOrderDraftSaved) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.message),
               backgroundColor: AppTheme.primaryBrown,
             ),
           );
-          Future.delayed(const Duration(milliseconds: 500), () {
+          Future<void>.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               Navigator.of(context).pop();
             }
           });
-        } else if (state is PlaceOrderSuccess) {
+          return;
+        }
+
+        if (state is RepOrderSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -152,107 +230,55 @@ class _OrderPageState extends State<OrderPage> {
                     ? state.message
                     : '${state.message} (${state.orderCode})',
               ),
-              backgroundColor: Colors.green,
+              backgroundColor: AppTheme.proceedOrderOlive,
             ),
           );
-          Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-          });
-        } else if (state is PlaceOrderError) {
+          await _handleSuccess(state);
+          return;
+        }
+
+        if (state is RepOrderError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.message),
-              backgroundColor: Colors.red,
+              backgroundColor: AppTheme.promotionMutedRed,
             ),
           );
         }
       },
       child: Scaffold(
         backgroundColor: AppTheme.surfaceWarm,
-        appBar: AppBar(
-          title: const Text('Assisted Order'),
-          actions: [
-            if (_assistedOrderRequestId != null)
-              TextButton(
-                onPressed: _resetPinStep,
-                child: const Text('Edit Order'),
-              ),
-          ],
-        ),
+        appBar: AppBar(title: const Text('Assisted Order')),
         body: _isLoadingCatalog
             ? const Center(child: CircularProgressIndicator())
             : _catalogError != null
-                ? _ErrorState(message: _catalogError!, onRetry: _loadCatalog)
-                : BlocBuilder<PlaceOrderCubit, PlaceOrderState>(
-                    builder: (context, state) {
-                      final isLoading = state is PlaceOrderLoading;
+            ? _ErrorState(message: _catalogError!, onRetry: _loadCatalog)
+            : BlocBuilder<RepOrderCubit, RepOrderState>(
+                builder: (context, state) {
+                  final isLoading = state is RepOrderLoading;
 
-                      return Column(
-                        children: [
-                          Expanded(
-                            child: _assistedOrderRequestId == null
-                                ? _ProductSelectionView(
-                                    shopName: widget.shopName,
-                                    products: _products,
-                                    cart: _cart,
-                                    onQuantityChanged: _updateQuantity,
-                                  )
-                                : _PinConfirmationView(
-                                    shopName: widget.shopName,
-                                    cart: _cart,
-                                    products: _products,
-                                    pinController: _pinController,
-                                    reasonController: _reasonController,
-                                    pinExpiresAt: _pinExpiresAt,
-                                    onResendPin: isLoading
-                                        ? null
-                                        : () {
-                                            context
-                                                .read<PlaceOrderCubit>()
-                                                .requestOrderPin(
-                                                  routeId: widget.routeId,
-                                                  shopId: widget.shopId,
-                                                  cart: _cart,
-                                                );
-                                          },
-                                  ),
-                          ),
-                          _BottomBar(
-                            itemCount: _cartItemCount,
-                            totalAmount: _cartTotal,
-                            isLoading: isLoading,
-                            isAwaitingPin: _assistedOrderRequestId != null,
-                            onSubmit: _cart.isEmpty || isLoading
-                                ? null
-                                : () {
-                                    if (_assistedOrderRequestId == null) {
-                                      context
-                                          .read<PlaceOrderCubit>()
-                                          .requestOrderPin(
-                                            routeId: widget.routeId,
-                                            shopId: widget.shopId,
-                                            cart: _cart,
-                                          );
-                                      return;
-                                    }
-
-                                    context
-                                        .read<PlaceOrderCubit>()
-                                        .confirmOrderPin(
-                                          assistedOrderRequestId:
-                                              _assistedOrderRequestId!,
-                                          pin: _pinController.text,
-                                          assistedReason:
-                                              _reasonController.text,
-                                        );
-                                  },
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                  return Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: _ProductSelectionView(
+                          shopName: widget.shopName,
+                          products: _products,
+                          cart: _cart,
+                          onQuantityChanged: _updateQuantity,
+                        ),
+                      ),
+                      _BottomBar(
+                        itemCount: _cartItemCount,
+                        totalAmount: _cartTotal,
+                        isLoading: isLoading,
+                        onSubmit: _cart.isEmpty || isLoading
+                            ? null
+                            : _submitOrderRequest,
+                      ),
+                    ],
+                  );
+                },
+              ),
       ),
     );
   }
@@ -282,12 +308,13 @@ class _ProductSelectionView extends StatelessWidget {
 
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _InfoCard(
           title: 'Create assisted order',
           message:
-              'Select the case quantities for ${shopName.trim().isEmpty ? 'this outlet' : shopName}. We will send a confirmation PIN to the shop owner activity center before the order is created.',
+              'Select products for ${shopName.trim().isEmpty ? 'this outlet' : shopName}. When the order is submitted, the system sends a confirmation PIN to the shop owner before the assisted order is finalized.',
           icon: Icons.storefront_outlined,
+          accentColor: AppTheme.primaryBrown,
         ),
         const SizedBox(height: 16),
         ...products.map((product) {
@@ -303,14 +330,15 @@ class _ProductSelectionView extends StatelessWidget {
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: <Widget>[
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    children: <Widget>[
                       Text(
                         product.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               color: AppTheme.textDark,
                               fontWeight: FontWeight.w700,
                             ),
@@ -319,16 +347,16 @@ class _ProductSelectionView extends StatelessWidget {
                       Text(
                         product.displayDescription,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.textSoft,
-                            ),
+                          color: AppTheme.textSoft,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         'Rs. ${product.orderPrice.toStringAsFixed(2)} / case',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.primaryBrown,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          color: AppTheme.primaryBrown,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -350,150 +378,17 @@ class _ProductSelectionView extends StatelessWidget {
   }
 }
 
-class _PinConfirmationView extends StatelessWidget {
-  const _PinConfirmationView({
-    required this.shopName,
-    required this.cart,
-    required this.products,
-    required this.pinController,
-    required this.reasonController,
-    required this.pinExpiresAt,
-    required this.onResendPin,
-  });
-
-  final String shopName;
-  final Map<String, int> cart;
-  final List<ShopCatalogProduct> products;
-  final TextEditingController pinController;
-  final TextEditingController reasonController;
-  final DateTime? pinExpiresAt;
-  final VoidCallback? onResendPin;
-
-  @override
-  Widget build(BuildContext context) {
-    final productsById = <String, ShopCatalogProduct>{
-      for (final product in products) product.id: product,
-    };
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _InfoCard(
-          title: 'Enter confirmation PIN',
-          message:
-              'The shop owner can now open their activity center, read the 6-digit PIN, and share it with the sales rep to complete the assisted order.',
-          icon: Icons.lock_clock_outlined,
-          accentColor: AppTheme.securitySlate,
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.outlineWarm),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                shopName,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.textDark,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              if (pinExpiresAt != null)
-                Text(
-                  'PIN expires at ${TimeOfDay.fromDateTime(pinExpiresAt!.toLocal()).format(context)}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.securitySlate,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              const SizedBox(height: 16),
-              ...cart.entries.map((entry) {
-                final product = productsById[entry.key];
-                if (product == null) {
-                  return const SizedBox.shrink();
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyLarge
-                              ?.copyWith(color: AppTheme.textDark),
-                        ),
-                      ),
-                      Text(
-                        '${entry.value} case(s)',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.primaryBrownDark,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: pinController,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(
-            labelText: 'Shop Owner PIN',
-            hintText: 'Enter 6-digit PIN',
-            counterText: '',
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: reasonController,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Reason for assisted order',
-            hintText:
-                'Briefly explain why the sales rep is placing this order on behalf of the outlet.',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: onResendPin,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Resend PIN'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.itemCount,
     required this.totalAmount,
     required this.isLoading,
-    required this.isAwaitingPin,
     required this.onSubmit,
   });
 
   final int itemCount;
   final double totalAmount;
   final bool isLoading;
-  final bool isAwaitingPin;
   final VoidCallback? onSubmit;
 
   @override
@@ -506,32 +401,32 @@ class _BottomBar extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+            children: <Widget>[
               Text(
                 'Selected items',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.textDark,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
                 '$itemCount item(s)',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.primaryBrown,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppTheme.primaryBrown,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             'Estimated total: Rs. ${totalAmount.toStringAsFixed(2)}',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSoft,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -551,11 +446,9 @@ class _BottomBar extends StatelessWidget {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : Text(
-                      isAwaitingPin
-                          ? 'Confirm Assisted Order'
-                          : 'Request Confirmation PIN',
-                      style: const TextStyle(
+                  : const Text(
+                      'Submit Order',
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
@@ -588,7 +481,7 @@ class _QuantityStepper extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
+        children: <Widget>[
           IconButton(
             onPressed: onDecrease,
             icon: const Icon(Icons.remove),
@@ -600,9 +493,9 @@ class _QuantityStepper extends StatelessWidget {
               child: Text(
                 '$quantity',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textDark,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -622,7 +515,7 @@ class _InfoCard extends StatelessWidget {
     required this.title,
     required this.message,
     required this.icon,
-    this.accentColor = AppTheme.proceedOrderOlive,
+    required this.accentColor,
   });
 
   final String title;
@@ -641,26 +534,26 @@ class _InfoCard extends StatelessWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Icon(icon, color: accentColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: <Widget>[
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSoft,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                 ),
               ],
             ),
@@ -684,13 +577,13 @@ class _ErrorState extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             Text(
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.promotionMutedRed,
-                  ),
+                color: AppTheme.promotionMutedRed,
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton(onPressed: onRetry, child: const Text('Retry')),
@@ -714,21 +607,21 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             Text(
               title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.textDark,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: AppTheme.textDark,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
             ),
           ],
         ),

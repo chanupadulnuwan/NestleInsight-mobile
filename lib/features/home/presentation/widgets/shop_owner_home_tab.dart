@@ -5,7 +5,6 @@ import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
-import 'package:mobile/features/promotions/data/services/promotion_service.dart';
 import 'package:mobile/features/promotions/presentation/cubit/promotion_cubit.dart';
 import 'package:mobile/features/promotions/presentation/cubit/promotion_state.dart';
 import 'package:mobile/features/promotions/presentation/pages/shop_promotions_page.dart';

@@ -113,7 +113,7 @@ class ShopPromotionDetailPage extends StatelessWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: promotion.eligibleProductNames.length,
-                  separatorBuilder: (_, __) => Divider(
+                  separatorBuilder: (_, _) => Divider(
                     height: 1,
                     color: AppTheme.outlineWarm.withAlpha(60),
                     indent: 16,

@@ -196,7 +196,7 @@ class _ReturningProductsFormState extends State<_ReturningProductsForm> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: row.reason,
+                      initialValue: row.reason,
                       decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder()),
                       items: _reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                       onChanged: (val) {

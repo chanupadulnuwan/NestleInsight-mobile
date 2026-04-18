@@ -1,26 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/rep_order_cubit.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:mobile/features/sales_rep/presentation/cubit/place_order_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/order_page.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../data/services/outlet_visit_service.dart';
 import '../cubit/outlet_visit_cubit.dart';
 
 class OutletVisitPage extends StatelessWidget {
-  final String routeId;
-  final String territoryId;
-
   const OutletVisitPage({
     super.key,
     required this.routeId,
     required this.territoryId,
+    this.initialOutlet,
+    this.smartRouteStopId,
+    this.smartRouteSessionId,
   });
+
+  final String routeId;
+  final String territoryId;
+  final TerritoryOutlet? initialOutlet;
+  final String? smartRouteStopId;
+  final String? smartRouteSessionId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => OutletVisitCubit()..loadOutlets(),
+      create: (_) {
+        final cubit = OutletVisitCubit();
+        final outlet = initialOutlet;
+        if (outlet != null) {
+          cubit.startVisit(
+            routeId: routeId,
+            territoryId: territoryId,
+            outlet: outlet,
+          );
+        } else {
+          cubit.loadOutlets();
+        }
+        return cubit;
+      },
       child: Scaffold(
         backgroundColor: AppTheme.surfaceWarm,
         appBar: AppBar(title: const Text('Outlet Visit')),
@@ -100,7 +120,19 @@ class OutletVisitPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => context.read<OutletVisitCubit>().loadOutlets(),
+              onPressed: () {
+                final outlet = initialOutlet;
+                if (outlet != null) {
+                  context.read<OutletVisitCubit>().startVisit(
+                        routeId: routeId,
+                        territoryId: territoryId,
+                        outlet: outlet,
+                      );
+                  return;
+                }
+
+                context.read<OutletVisitCubit>().loadOutlets();
+              },
               child: const Text('Retry'),
             ),
           ],
@@ -306,7 +338,7 @@ class _InProgressFormContentState extends State<_InProgressFormContent> {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => BlocProvider(
-                      create: (_) => PlaceOrderCubit(),
+                      create: (_) => RepOrderCubit(),
                       child: OrderPage(
                         routeId: widget.state.routeId,
                         shopId: widget.state.selectedOutlet!.id,

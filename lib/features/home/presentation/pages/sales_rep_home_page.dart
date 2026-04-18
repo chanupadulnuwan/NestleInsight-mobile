@@ -7,7 +7,6 @@ import 'package:mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/start_route_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/daily_report_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/outlet_visit_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/returning_products_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/smart_route_page.dart';
@@ -15,13 +14,23 @@ import 'package:mobile/features/sales_rep/presentation/pages/upload_report_page.
 import '../../../../core/theme/app_theme.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
-import 'package:mobile/features/sales_rep/presentation/cubit/visit_cubit.dart';
-import 'package:mobile/features/sales_rep/presentation/cubit/outlet_visit_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/sales_return_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/upload_report_cubit.dart';
 
 class SalesRepHomePage extends StatelessWidget {
   const SalesRepHomePage({super.key});
+
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  String? _normalizeTerritoryId(String? value) {
+    final territoryId = value?.trim() ?? '';
+    if (territoryId.isEmpty || !_uuidPattern.hasMatch(territoryId)) {
+      return null;
+    }
+    return territoryId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -296,6 +305,7 @@ class SalesRepHomePage extends StatelessWidget {
 
   Widget _buildDashboardList(BuildContext context, HomeLoaded state) {
     final bool hasRoute = state.hasActiveRoute;
+    final bool hasReportableRoute = state.hasReportableRoute;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -331,9 +341,14 @@ class SalesRepHomePage extends StatelessWidget {
             color: AppTheme.kOrange,
             isLocked: false,
             onTap: () {
+              final territoryId =
+                  _normalizeTerritoryId(state.activeTerritoryId) ??
+                  _normalizeTerritoryId(state.territoryId);
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const RegisterOutletPage(),
+                  builder: (_) => RegisterOutletPage(
+                    territoryId: territoryId ?? '',
+                  ),
                 ),
               );
             },
@@ -368,12 +383,20 @@ class SalesRepHomePage extends StatelessWidget {
             color: AppTheme.promotionMutedRed,
             isLocked: !hasRoute,
             onTap: () {
+              final routeId = state.activeRouteId;
+              final territoryId = state.activeTerritoryId;
+              if (routeId == null || territoryId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Missing route or territory details')),
+                );
+                return;
+              }
+
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const ReportIncidentPage(
-                    // REPLACE THIS ID TOO
-                    routeId: 'c2c3cf28-1a37-47e1-a418-581cf1d44d47',
-                    territoryId: '00000000-0000-0000-0000-000000000001',
+                  builder: (_) => ReportIncidentPage(
+                    routeId: routeId,
+                    territoryId: territoryId,
                   ),
                 ),
               );
@@ -384,14 +407,14 @@ class SalesRepHomePage extends StatelessWidget {
             title: 'End of Day Report',
             icon: Icons.assignment_turned_in,
             color: AppTheme.securitySlate,
-            isLocked: !hasRoute,
+            isLocked: !hasReportableRoute,
             onTap: () {
+              final routeId = state.activeRouteId ?? '';
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const DailyReportPage(
-                    // REPLACE THIS ID TOO
-                    routeId: 'c2c3cf28-1a37-47e1-a418-581cf1d44d47',
-                    territoryId: '00000000-0000-0000-0000-000000000001',
+                  builder: (_) => BlocProvider(
+                    create: (_) => UploadReportCubit()..loadMyReports(),
+                    child: UploadReportPage(routeId: routeId),
                   ),
                 ),
               );
@@ -406,10 +429,12 @@ class SalesRepHomePage extends StatelessWidget {
             isLocked: false,
             onTap: () {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => BlocProvider(
-                  create: (_) => VisitCubit(),
-                  child: const SmartRoutePage(),
-                )),
+                MaterialPageRoute<void>(
+                  builder: (_) => SmartRoutePage(
+                    routeId: state.activeRouteId,
+                    territoryId: state.activeTerritoryId,
+                  ),
+                ),
               );
             },
           ),
@@ -426,12 +451,9 @@ class SalesRepHomePage extends StatelessWidget {
               final territoryId = state.activeTerritoryId ?? '';
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => MultiBlocProvider(
-                    providers: [
-                      BlocProvider(create: (_) => VisitCubit()),
-                      BlocProvider(create: (_) => OutletVisitCubit()..loadOutlets()),
-                    ],
-                    child: OutletVisitPage(routeId: routeId, territoryId: territoryId),
+                  builder: (_) => OutletVisitPage(
+                    routeId: routeId,
+                    territoryId: territoryId,
                   ),
                 ),
               );
