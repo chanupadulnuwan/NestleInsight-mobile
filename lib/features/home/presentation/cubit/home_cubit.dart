@@ -5,6 +5,62 @@ import '../../../../core/network/dio_client.dart';
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit() : super(HomeInitial());
 
+  String _readFirstName(Map<dynamic, dynamic> userData) {
+    final firstName = userData['firstName']?.toString().trim();
+    if (firstName != null && firstName.isNotEmpty) {
+      return firstName;
+    }
+
+    final fullName = _readFullName(userData);
+    if (fullName.isNotEmpty) {
+      return fullName.split(' ').first;
+    }
+
+    return 'User';
+  }
+
+  String _readFullName(Map<dynamic, dynamic> userData) {
+    final fullName = userData['fullName']?.toString().trim();
+    if (fullName != null && fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    final firstName = userData['firstName']?.toString().trim();
+    final lastName = userData['lastName']?.toString().trim();
+    final combined = [firstName, lastName]
+        .where((value) => value != null && value.isNotEmpty)
+        .join(' ');
+    if (combined.isNotEmpty) {
+      return combined;
+    }
+
+    return 'Sales Representative';
+  }
+
+  String _readUsername(Map<dynamic, dynamic> userData) {
+    return userData['username']?.toString().trim().isNotEmpty == true
+        ? userData['username'].toString().trim()
+        : 'Not available';
+  }
+
+  String _readEmail(Map<dynamic, dynamic> userData) {
+    return userData['email']?.toString().trim().isNotEmpty == true
+        ? userData['email'].toString().trim()
+        : 'Not available';
+  }
+
+  String _readMobileNumber(Map<dynamic, dynamic> userData) {
+    final phone = userData['phoneNumber']?.toString().trim();
+    if (phone != null && phone.isNotEmpty) {
+      return phone;
+    }
+    final mobile = userData['mobileNumber']?.toString().trim();
+    if (mobile != null && mobile.isNotEmpty) {
+      return mobile;
+    }
+    return 'Not available';
+  }
+
   Map<String, dynamic> _readAuthUser(dynamic payload) {
     if (payload is! Map) {
       return const <String, dynamic>{};
@@ -70,6 +126,10 @@ class HomeCubit extends Cubit<HomeState> {
       bool hasActiveRoute = false;
       bool hasReportableRoute = false;
       String firstName = "User";
+      String fullName = "Sales Representative";
+      String username = "Not available";
+      String email = "Not available";
+      String mobileNumber = "Not available";
       String territoryName = "Unknown Territory";
       String? territoryId;
       String? activeTerritoryId;
@@ -79,7 +139,11 @@ class HomeCubit extends Cubit<HomeState> {
       try {
         final resAuth = await dio.get('/auth/me');
         final userData = _readAuthUser(resAuth.data);
-        firstName = userData['firstName'] ?? 'User';
+        firstName = _readFirstName(userData);
+        fullName = _readFullName(userData);
+        username = _readUsername(userData);
+        email = _readEmail(userData);
+        mobileNumber = _readMobileNumber(userData);
         territoryName = _readTerritoryName(userData);
         territoryId = _readTerritoryId(userData);
       } catch (e) {
@@ -92,7 +156,7 @@ class HomeCubit extends Cubit<HomeState> {
         final List items = resBeat.data['data'] ?? [];
         shopsLeft = items.where((item) => item['status'] != 'COMPLETED').length;
       } catch (e) {
-        shopsLeft = 14; // Fallback for UI if empty
+        shopsLeft = 0;
       }
 
       // 3. Route Status
@@ -126,6 +190,10 @@ class HomeCubit extends Cubit<HomeState> {
 
       emit(HomeLoaded(
         firstName: firstName,
+        fullName: fullName,
+        username: username,
+        email: email,
+        mobileNumber: mobileNumber,
         territoryName: territoryName,
         territoryId: territoryId,
         shopsLeft: shopsLeft,

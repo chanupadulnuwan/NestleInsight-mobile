@@ -88,6 +88,40 @@ class PromotionService {
     }
   }
 
+  /// Returns all promotions assigned to [territoryId], preserving admin status.
+  Future<List<Promotion>> fetchTerritoryPromotions(String territoryId) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/promotions/territory',
+        queryParameters: <String, dynamic>{'territoryId': territoryId},
+      );
+
+      final body = response.data;
+
+      final List<dynamic> raw;
+      if (body is List) {
+        raw = body;
+      } else if (body is Map && body['data'] is List) {
+        raw = body['data'] as List<dynamic>;
+      } else {
+        raw = const <dynamic>[];
+      }
+
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(Promotion.fromJson)
+          .toList();
+    } on DioException catch (error) {
+      throw PromotionServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to load territory promotions right now.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
   /// Validates a promo code against current cart contents.
   ///
   /// Calls `POST /promotions/validate`.

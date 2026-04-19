@@ -43,7 +43,7 @@ class ReturningProductsPage extends StatelessWidget {
                 _ReturningProductsForm(routeId: routeId),
                 if (state is SalesReturnSubmitting)
                   Container(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     child: const Center(child: CircularProgressIndicator()),
                   ),
               ],

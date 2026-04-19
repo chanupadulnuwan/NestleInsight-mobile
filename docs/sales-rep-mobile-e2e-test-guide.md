@@ -8,11 +8,18 @@ The SQL files below are now written for a database that already has the imported
 
 - Seed demo data: [2026-04-18-sales-rep-mobile-e2e-seed.sql](/c:/NestleInsight/nestleinsight-backend/database/sql/2026-04-18-sales-rep-mobile-e2e-seed.sql)
 - Approve latest route with PIN `123456`: [2026-04-18-sales-rep-approve-latest-route.sql](/c:/NestleInsight/nestleinsight-backend/database/sql/2026-04-18-sales-rep-approve-latest-route.sql)
+- Repair assisted-order shop-owner links in an existing seeded DB: [2026-04-18-sales-rep-fix-assisted-order-shop-owners.sql](/c:/NestleInsight/nestleinsight-backend/database/sql/2026-04-18-sales-rep-fix-assisted-order-shop-owners.sql)
 
 Run the seed first:
 
 ```sql
 \i 'C:/NestleInsight/nestleinsight-backend/database/sql/2026-04-18-sales-rep-mobile-e2e-seed.sql'
+```
+
+If you already seeded before this fix and do not want to reset the route data, run this once:
+
+```sql
+\i 'C:/NestleInsight/nestleinsight-backend/database/sql/2026-04-18-sales-rep-fix-assisted-order-shop-owners.sql'
 ```
 
 ## Demo credentials
@@ -21,6 +28,8 @@ Run the seed first:
 - Sales rep email: `sr.demo@nestleinsight.local`
 - Regional manager username: `rm.demo`
 - Regional manager email: `rm.demo@nestleinsight.local`
+- City Mini Mart shop-owner username: `so.city.demo`
+- Lake View Stores shop-owner username: `so.lake.demo`
 - Shared password: `Password123!`
 - Demo territory: `North Territory`
 - Demo warehouse: `North Warehouse`
@@ -31,6 +40,8 @@ Run the seed first:
 - Territory ID: `a1000000-0000-0000-0000-000000000001`
 - Warehouse ID: `b2000000-0000-0000-0000-000000000001`
 - Sales rep ID: `44444444-4444-4444-8444-444444444444`
+- Shop owner 1 ID: `88888888-8888-4888-8888-888888888881` (`City Mini Mart`)
+- Shop owner 2 ID: `88888888-8888-4888-8888-888888888882` (`Lake View Stores`)
 - Outlet 1: `55555555-5555-4555-8555-555555555555` (`City Mini Mart`)
 - Outlet 2: `66666666-6666-4666-8666-666666666666` (`Lake View Stores`)
 - Product 1: `138a9306-7b32-4d23-8666-fc0531082044` (`Milo`, SKU `MILO-400G`)
@@ -161,7 +172,7 @@ ORDER BY created_at DESC;
 
 These are worth knowing before you spend time debugging the seed:
 
-- Assisted order now has backend support for `/orders/sales-rep/request-pin` and `/orders/sales-rep/:id/confirm-pin`, but it still depends on the selected outlet matching an active shop-owner account. If no matching shop owner exists, the backend saves the request as a draft instead of completing the PIN flow.
+- Assisted order now has backend support for `/orders/sales-rep/request-pin` and `/orders/sales-rep/:id/confirm-pin`. The latest demo seed links `City Mini Mart` and `Lake View Stores` to active demo shop-owner accounts, so the PIN flow should work for those outlets. Custom outlets still need a matching active shop-owner account or they will save as drafts.
 - The sales-rep product catalog route now allows `SALES_REP`, so the order page can load catalog products in the current backend.
 - Daily report draft review endpoints are present for generate, fetch, draft update, and submit. The feature should be testable against the current backend.
 

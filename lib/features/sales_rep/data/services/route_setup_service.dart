@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:mobile/core/network/dio_client.dart';
+import 'package:mobile/core/network/network_error_helper.dart';
 
 class RouteSetupServiceException implements Exception {
   const RouteSetupServiceException(this.message, {this.code});
@@ -8,91 +9,112 @@ class RouteSetupServiceException implements Exception {
   final String? code;
 }
 
-class Territory {
-  const Territory({required this.id, required this.name});
+class RouteSetupVehicle {
+  const RouteSetupVehicle({
+    required this.id,
+    required this.label,
+    required this.registrationNumber,
+    required this.status,
+    required this.isAvailable,
+    required this.unavailableReason,
+  });
 
   final String id;
-  final String name;
+  final String label;
+  final String registrationNumber;
+  final String status;
+  final bool isAvailable;
+  final String? unavailableReason;
 
-  factory Territory.fromJson(Map<String, dynamic> json) {
-    return Territory(
+  factory RouteSetupVehicle.fromJson(Map<String, dynamic> json) {
+    return RouteSetupVehicle(
       id: (json['id'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
+      registrationNumber: (json['registrationNumber'] ?? '').toString(),
+      status: (json['status'] ?? '').toString(),
+      isAvailable: json['isAvailable'] == true,
+      unavailableReason: json['unavailableReason']?.toString(),
     );
   }
 }
 
-class Warehouse {
-  const Warehouse({required this.id, required this.name});
+class RouteSetupWarehouse {
+  const RouteSetupWarehouse({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.vehicles,
+  });
 
   final String id;
   final String name;
+  final String address;
+  final List<RouteSetupVehicle> vehicles;
 
-  factory Warehouse.fromJson(Map<String, dynamic> json) {
-    return Warehouse(
+  factory RouteSetupWarehouse.fromJson(Map<String, dynamic> json) {
+    final rawVehicles = json['vehicles'];
+    return RouteSetupWarehouse(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
+      address: (json['address'] ?? '').toString(),
+      vehicles: rawVehicles is List
+          ? rawVehicles
+                .whereType<Map>()
+                .map(
+                  (item) => RouteSetupVehicle.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+    );
+  }
+}
+
+class RouteSetupOptions {
+  const RouteSetupOptions({
+    required this.territoryId,
+    required this.warehouses,
+  });
+
+  final String? territoryId;
+  final List<RouteSetupWarehouse> warehouses;
+
+  factory RouteSetupOptions.fromJson(Map<String, dynamic> json) {
+    final rawWarehouses = json['warehouses'];
+    return RouteSetupOptions(
+      territoryId: json['territoryId']?.toString(),
+      warehouses: rawWarehouses is List
+          ? rawWarehouses
+                .whereType<Map>()
+                .map(
+                  (item) => RouteSetupWarehouse.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
     );
   }
 }
 
 class RouteSetupService {
-  final Dio _dio = DioClient.instance.client;
+  RouteSetupService({Dio? dio}) : _dio = dio ?? DioClient.instance.client;
 
-  Future<List<Territory>> fetchTerritories() async {
+  final Dio _dio;
+
+  Future<RouteSetupOptions> fetchSetupOptions() async {
     try {
-      final response = await _dio.get('/territories');
-
-      if (response.statusCode == 200) {
-        final territories = response.data?['territories'] ?? [];
-        if (territories is List) {
-          return territories
-              .map((t) => Territory.fromJson(t as Map<String, dynamic>))
-              .toList();
-        }
-      }
-
+      final response = await _dio.get<Map<String, dynamic>>('/sales-routes/setup');
+      return RouteSetupOptions.fromJson(response.data ?? const {});
+    } on DioException catch (error) {
       throw RouteSetupServiceException(
-        'Failed to fetch territories: ${response.statusCode}',
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to load route setup options.',
+        ),
+        code: extractBackendErrorCode(error),
       );
-    } on DioException catch (e) {
-      throw RouteSetupServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Failed to fetch territories',
-      );
-    } catch (e) {
-      throw RouteSetupServiceException('An unexpected error occurred: $e');
-    }
-  }
-
-  Future<List<Warehouse>> fetchWarehouses({required String territoryId}) async {
-    try {
-      final response = await _dio.get(
-        '/warehouses',
-        queryParameters: {'territoryId': territoryId},
-      );
-
-      if (response.statusCode == 200) {
-        final warehouses = response.data?['warehouses'] ?? [];
-        if (warehouses is List) {
-          return warehouses
-              .map((w) => Warehouse.fromJson(w as Map<String, dynamic>))
-              .toList();
-        }
-      }
-
-      throw RouteSetupServiceException(
-        'Failed to fetch warehouses: ${response.statusCode}',
-      );
-    } on DioException catch (e) {
-      throw RouteSetupServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Failed to fetch warehouses',
-      );
-    } catch (e) {
-      throw RouteSetupServiceException('An unexpected error occurred: $e');
     }
   }
 }

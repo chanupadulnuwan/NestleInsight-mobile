@@ -107,8 +107,30 @@ class Promotion {
 
   /// Whether this promotion is still active (not expired).
   bool get isActive {
-    final now = DateTime.now();
-    return now.isBefore(endDate) && status == 'active';
+    return normalizedStatus == 'active';
+  }
+
+  String get normalizedStatus => status.trim().toLowerCase();
+
+  bool get isScheduled => normalizedStatus == 'scheduled';
+
+  bool get isDisabled => normalizedStatus == 'disabled';
+
+  bool get isExpired => normalizedStatus == 'expired';
+
+  String get statusLabel {
+    switch (normalizedStatus) {
+      case 'scheduled':
+        return 'Scheduled';
+      case 'disabled':
+        return 'Disabled';
+      case 'expired':
+        return 'Expired';
+      case 'draft':
+        return 'Draft';
+      default:
+        return 'Active';
+    }
   }
 
   /// All promotional rules combined into a readable list.

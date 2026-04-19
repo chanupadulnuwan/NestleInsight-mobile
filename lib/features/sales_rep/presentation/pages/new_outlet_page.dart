@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
-import 'package:mobile/features/sales_rep/data/services/route_setup_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/register_outlet_cubit.dart';
 
 class NewOutletPage extends StatefulWidget {
@@ -93,7 +92,7 @@ class _NewOutletPageState extends State<NewOutletPage> {
             ),
           );
           Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) {
+            if (context.mounted) {
               Navigator.of(context).pop();
             }
           });
@@ -113,7 +112,7 @@ class _NewOutletPageState extends State<NewOutletPage> {
             final isLoading = state is RegisterOutletLoading;
             final territories = state is RegisterOutletLocationFetched
                 ? state.territories
-                : <Territory>[];
+                : <RegisterOutletTerritoryOption>[];
             final hasLocation =
                 _currentLatitude != null && _currentLongitude != null;
 

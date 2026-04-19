@@ -59,7 +59,7 @@ class RouteCubit extends Cubit<RouteState> {
 
   Future<bool> createRoute({
     required String warehouseId,
-    String? vehicleId,
+    required String vehicleId,
   }) async {
     final previousRoute = currentRoute;
     emit(RouteLoading());
@@ -71,6 +71,75 @@ class RouteCubit extends Cubit<RouteState> {
       );
       emit(RouteActionSuccess(result.message, result.route));
       emit(RouteLoaded(result.route));
+      return true;
+    } on RouteServiceException catch (error) {
+      emit(RouteError(error.message));
+      emit(RouteLoaded(previousRoute));
+      return false;
+    }
+  }
+
+  Future<bool> updateBeatPlan({
+    required String routeId,
+    required List<String> selectedOutletIds,
+  }) async {
+    final previousRoute = currentRoute;
+    emit(RouteLoading());
+
+    try {
+      final result = await _routeService.updateBeatPlan(
+        routeId: routeId,
+        selectedOutletIds: selectedOutletIds,
+      );
+      final nextRoute = result.route ?? await _routeService.fetchMyRoute();
+      emit(RouteActionSuccess(result.message, nextRoute));
+      emit(RouteLoaded(nextRoute));
+      return true;
+    } on RouteServiceException catch (error) {
+      emit(RouteError(error.message));
+      emit(RouteLoaded(previousRoute));
+      return false;
+    }
+  }
+
+  Future<bool> requestDeliveryApproval({
+    required String routeId,
+    required List<String> orderIds,
+  }) async {
+    final previousRoute = currentRoute;
+    emit(RouteLoading());
+
+    try {
+      final result = await _routeService.requestDeliveryApproval(
+        routeId: routeId,
+        orderIds: orderIds,
+      );
+      final refreshedRoute = await _routeService.fetchMyRoute();
+      emit(RouteActionSuccess(result.message, refreshedRoute));
+      emit(RouteLoaded(refreshedRoute));
+      return true;
+    } on RouteServiceException catch (error) {
+      emit(RouteError(error.message));
+      emit(RouteLoaded(previousRoute));
+      return false;
+    }
+  }
+
+  Future<bool> confirmDeliveryApprovalPin({
+    required String approvalRequestId,
+    required String pin,
+  }) async {
+    final previousRoute = currentRoute;
+    emit(RouteLoading());
+
+    try {
+      final result = await _routeService.confirmDeliveryApprovalPin(
+        approvalRequestId: approvalRequestId,
+        pin: pin,
+      );
+      final refreshedRoute = await _routeService.fetchMyRoute();
+      emit(RouteActionSuccess(result.message, refreshedRoute));
+      emit(RouteLoaded(refreshedRoute));
       return true;
     } on RouteServiceException catch (error) {
       emit(RouteError(error.message));

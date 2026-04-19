@@ -377,7 +377,7 @@ class _UploadReportPageState extends State<UploadReportPage> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: badgeColor.withOpacity(0.12),
+                        color: badgeColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -418,9 +418,9 @@ class _InfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: accentColor.withOpacity(0.08),
+        color: accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withOpacity(0.2)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,7 +531,7 @@ class _HeaderCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: badgeColor.withOpacity(0.12),
+                    color: badgeColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -1259,7 +1259,7 @@ class _DetailGroup extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: (row.badgeColor ?? AppTheme.securitySlate).withOpacity(0.12),
+                      color: (row.badgeColor ?? AppTheme.securitySlate).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(

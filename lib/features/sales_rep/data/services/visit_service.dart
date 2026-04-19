@@ -15,6 +15,9 @@ class StoreVisit {
     required this.status,
     required this.visitStartedAt,
     this.photoUrls,
+    this.lastOrderDateSnapshot,
+    this.suggestedOrderJson,
+    this.hasPendingDelivery = false,
   });
 
   final String id;
@@ -22,6 +25,9 @@ class StoreVisit {
   final String status;
   final DateTime visitStartedAt;
   final List<String>? photoUrls;
+  final DateTime? lastOrderDateSnapshot;
+  final Map<String, dynamic>? suggestedOrderJson;
+  final bool hasPendingDelivery;
 
   factory StoreVisit.fromJson(Map<String, dynamic> json) {
     return StoreVisit(
@@ -34,6 +40,11 @@ class StoreVisit {
       photoUrls: (json['photoUrls'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList(),
+      lastOrderDateSnapshot: json['lastOrderDateSnapshot'] != null
+          ? DateTime.tryParse(json['lastOrderDateSnapshot'])
+          : null,
+      suggestedOrderJson: json['suggestedOrderJson'] as Map<String, dynamic>?,
+      hasPendingDelivery: json['hasPendingDelivery'] == true,
     );
   }
 }

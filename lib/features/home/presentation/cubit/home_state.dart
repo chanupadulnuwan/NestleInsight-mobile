@@ -6,6 +6,10 @@ class HomeLoading extends HomeState {}
 
 class HomeLoaded extends HomeState {
   final String firstName;
+  final String fullName;
+  final String username;
+  final String email;
+  final String mobileNumber;
   final String territoryName;
   final String? territoryId;
   final bool hasActiveRoute;
@@ -16,6 +20,10 @@ class HomeLoaded extends HomeState {
 
   HomeLoaded({
     required this.firstName,
+    required this.fullName,
+    required this.username,
+    required this.email,
+    required this.mobileNumber,
     required this.territoryName,
     this.territoryId,
     required this.hasActiveRoute,

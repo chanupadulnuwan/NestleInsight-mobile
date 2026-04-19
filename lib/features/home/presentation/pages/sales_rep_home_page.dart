@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shimmer/shimmer.dart';
 
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/pages/login_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/start_route_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/outlet_visit_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/returning_products_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/smart_route_page.dart';
-import 'package:mobile/features/sales_rep/presentation/pages/upload_report_page.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../cubit/home_cubit.dart';
-import '../cubit/home_state.dart';
+import 'package:mobile/features/home/presentation/cubit/home_cubit.dart';
+import 'package:mobile/features/home/presentation/cubit/home_state.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/sales_return_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/upload_report_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/outlet_visit_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/returning_products_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/smart_route_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/start_route_page.dart';
+import 'package:mobile/features/home/presentation/controllers/sales_rep_activity_cubit.dart';
+import 'package:mobile/features/home/presentation/widgets/sales_rep_activity_tab.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/upload_report_page.dart';
 
 class SalesRepHomePage extends StatelessWidget {
   const SalesRepHomePage({super.key});
@@ -34,268 +36,367 @@ class SalesRepHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Provide the Cubit and load data immediately
-    return BlocProvider(
-      create: (context) => HomeCubit()..loadHomeData(),
-      child: Scaffold(
-        backgroundColor: AppTheme.kCream,
-        body: BlocBuilder<HomeCubit, HomeState>(
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (context) => HomeCubit()..loadHomeData()),
+        BlocProvider(create: (context) => SalesRepActivityCubit()),
+      ],
+      child: _SalesRepHomeView(normalizeTerritoryId: _normalizeTerritoryId),
+    );
+  }
+}
+
+class _SalesRepHomeView extends StatefulWidget {
+  const _SalesRepHomeView({required this.normalizeTerritoryId});
+
+  final String? Function(String?) normalizeTerritoryId;
+
+  @override
+  State<_SalesRepHomeView> createState() => _SalesRepHomeViewState();
+}
+
+class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
+  int _currentIndex = 0;
+
+  String _buildShopsTitle(HomeLoaded state) {
+    if (state.shopsLeft <= 0) {
+      return 'No shops left to visit today';
+    }
+    if (state.shopsLeft == 1) {
+      return '1 shop left to visit today';
+    }
+    return '${state.shopsLeft} shops left to visit today';
+  }
+
+  String _buildShopsSubtitle(HomeLoaded state) {
+    if (state.shopsLeft <= 0) {
+      return 'Today\'s best plan is complete';
+    }
+    return state.hasActiveRoute ? 'Route is active' : 'From today\'s shop list';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.kCream,
+      body: SafeArea(
+        child: BlocBuilder<HomeCubit, HomeState>(
           builder: (context, state) {
             if (state is HomeInitial || state is HomeLoading) {
               return _buildShimmerLoading();
-            } else if (state is HomeLoaded) {
-              return _buildLoadedState(context, state);
-            } else if (state is HomeError) {
+            }
+            if (state is HomeError) {
               return Center(
-                child: Text(
-                  state.message,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: AppTheme.kTextDark),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    state.message,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppTheme.kTextDark,
+                    ),
+                  ),
                 ),
               );
             }
-            return const SizedBox.shrink();
+            if (state is! HomeLoaded) {
+              return const SizedBox.shrink();
+            }
+
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: _currentIndex == 0
+                  ? _buildHomeTab(context, state)
+                  : _currentIndex == 1
+                      ? const SalesRepActivityTab()
+                      : _buildSettingsTab(context, state),
+            );
           },
         ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        backgroundColor: Colors.white,
+        indicatorColor: AppTheme.kCream,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'Activity'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+        ],
       ),
     );
   }
 
   Widget _buildShimmerLoading() {
     return SingleChildScrollView(
-      child: Column(
-        children: [
-          SizedBox(
-            height: 240,
-            child: Stack(
-              children: [
-                Shimmer.fromColors(
+      physics: const BouncingScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          children: [
+            Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                height: 250,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ...List.generate(
+              5,
+              (index) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Shimmer.fromColors(
                   baseColor: Colors.grey[300]!,
                   highlightColor: Colors.grey[100]!,
                   child: Container(
-                    height: 200,
-                    width: double.infinity,
-                    color: Colors.white,
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 20,
-                  right: 20,
-                  child: Shimmer.fromColors(
-                    baseColor: Colors.grey[300]!,
-                    highlightColor: Colors.grey[100]!,
-                    child: Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: List.generate(
-                5,
-                (index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Shimmer.fromColors(
-                    baseColor: Colors.grey[300]!,
-                    highlightColor: Colors.grey[100]!,
-                    child: Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                    height: 88,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildLoadedState(BuildContext context, HomeLoaded state) {
+  Widget _buildHomeTab(BuildContext context, HomeLoaded state) {
     return SingleChildScrollView(
+      key: const ValueKey('sales-rep-home'),
       physics: const BouncingScrollPhysics(),
-      child: Column(
-        children: [
-          _buildHeroSection(context, state),
-          const SizedBox(height: 10),
-          _buildDashboardList(context, state),
-          const SizedBox(height: 40),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeroSection(context, state),
+            const SizedBox(height: 24),
+            Text(
+              'Work Dashboard',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppTheme.kTextDark,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildDashboardList(context, state),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeroSection(BuildContext context, HomeLoaded state) {
-    return SizedBox(
-      height: 240,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Banner Background
-          Container(
-            height: 200,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.kBrown, AppTheme.kTextDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.kTextDark.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF5A382A), Color(0xFF211714)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.kTextDark.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.2),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.35),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ],
+              ),
             ),
-            child: SafeArea(
-              bottom: false,
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 20,
+            Positioned(
+              right: -8,
+              top: 18,
+              child: SizedBox(
+                width: 170,
+                height: 128,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: const [
+                    _HeroProductImage(
+                      assetPath: 'assets/images/products/milo_400g.png',
+                      left: 6,
+                      top: 24,
+                      height: 78,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                    _HeroProductImage(
+                      assetPath: 'assets/images/products/nescafe_3in1.png',
+                      left: 68,
+                      top: 8,
+                      height: 94,
+                    ),
+                    _HeroProductImage(
+                      assetPath: 'assets/images/products/maggi_chicken.png',
+                      left: 116,
+                      top: 26,
+                      height: 74,
+                    ),
+                    _HeroProductImage(
+                      assetPath: 'assets/images/products/nestle_everyday_clean.png',
+                      left: 90,
+                      top: 62,
+                      height: 54,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
                           _getGreeting(),
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: AppTheme.kCream.withOpacity(0.8),
-                                fontWeight: FontWeight.w500,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Hello ${state.firstName}!',
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
                         ),
-                      ],
+                        child: IconButton(
+                          icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+                          onPressed: () => _handleLogout(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: 170,
+                    child: Text(
+                      'Hello ${state.firstName}',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.logout,
-                        color: Colors.white,
-                        size: 28,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildHeroInfoCard(
+                          context,
+                          title: 'Territory',
+                          value: state.territoryName,
+                          icon: Icons.location_on_outlined,
+                        ),
                       ),
-                      onPressed: () => _handleLogout(context),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _buildHeroInfoCard(
+                          context,
+                          title: _buildShopsTitle(state),
+                          value: _buildShopsSubtitle(state),
+                          icon: Icons.local_shipping_outlined,
+                          alignStart: true,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          // Territory Card Overlapping
-          Positioned(
-            bottom: 0,
-            left: 20,
-            right: 20,
-            child: _buildTerritoryCard(context, state),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTerritoryCard(BuildContext context, HomeLoaded state) {
+  Widget _buildHeroInfoCard(
+    BuildContext context, {
+    required String title,
+    required String value,
+    required IconData icon,
+    bool alignStart = false,
+  }) {
     return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: 96,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.kTextDark.withOpacity(0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            alignStart ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Current Territory',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.kBrown,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  state.territoryName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.kTextDark,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          Icon(icon, color: AppTheme.kBrown, size: 24),
+          const SizedBox(height: 6),
+          Flexible(
+            child: Text(
+              title,
+              textAlign: alignStart ? TextAlign.left : TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.kTextDark,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.kCream,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${state.shopsLeft}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.kTextDark,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
-                  ),
-                ),
-                Text(
-                  'Shops',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.kBrown,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 2),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: alignStart ? TextAlign.left : TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.kBrown,
+                fontWeight: FontWeight.w600,
+                height: 1.1,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -304,284 +405,387 @@ class SalesRepHomePage extends StatelessWidget {
   }
 
   Widget _buildDashboardList(BuildContext context, HomeLoaded state) {
-    final bool hasRoute = state.hasActiveRoute;
-    final bool hasReportableRoute = state.hasReportableRoute;
+    final hasRoute = state.hasActiveRoute;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              'Your Dashboard',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.kTextDark,
-                fontWeight: FontWeight.w800,
+    return Column(
+      children: [
+        _buildActionCard(
+          context: context,
+          title: 'Start The Day',
+          subtitle: 'Select vehicle, opening stock, auto carry',
+          icon: Icons.wb_sunny_outlined,
+          color: AppTheme.kOrange,
+          isLocked: false,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const StartRoutePage()),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Smart Route',
+          subtitle: 'Plan the most efficient route',
+          icon: Icons.alt_route,
+          color: AppTheme.kBrown,
+          isLocked: false,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SmartRoutePage(
+                  routeId: state.activeRouteId,
+                  territoryId: state.activeTerritoryId,
+                ),
               ),
-            ),
-          ),
-          _buildActionCard(
-            context: context,
-            title: 'Start Route',
-            icon: Icons.wb_sunny,
-            color: AppTheme.kOrange,
-            isLocked: false,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const StartRoutePage()),
-              );
-            },
-          ),
-          _buildActionCard(
-            context: context,
-            title: 'Register New Outlet',
-            icon: Icons.add_business,
-            color: AppTheme.kOrange,
-            isLocked: false,
-            onTap: () {
-              final territoryId =
-                  _normalizeTerritoryId(state.activeTerritoryId) ??
-                  _normalizeTerritoryId(state.territoryId);
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => RegisterOutletPage(
-                    territoryId: territoryId ?? '',
-                  ),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Outlet Visit',
+          subtitle: 'OSA, order taking, deliveries, and promotions',
+          icon: Icons.storefront_outlined,
+          color: AppTheme.kBrown,
+          isLocked: !hasRoute,
+          onTap: () {
+            final routeId = state.activeRouteId ?? '';
+            final territoryId = state.activeTerritoryId ?? '';
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => OutletVisitPage(
+                  routeId: routeId,
+                  territoryId: territoryId,
+                ),
+              ),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Returning Products',
+          subtitle: 'Manage product returns efficiently',
+          icon: Icons.assignment_return_outlined,
+          color: AppTheme.kBrown,
+          isLocked: !hasRoute,
+          onTap: () {
+            final routeId = state.activeRouteId ?? '';
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BlocProvider(
+                  create: (_) => SalesReturnCubit(),
+                  child: ReturningProductsPage(routeId: routeId),
+                ),
+              ),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Uploads',
+          subtitle: 'View orders, reports, and upload daily data',
+          icon: Icons.cloud_upload_outlined,
+          color: AppTheme.kBrown,
+          isLocked: false,
+          onTap: () {
+            final routeId = state.activeRouteId ?? '';
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BlocProvider(
+                  create: (_) => UploadReportCubit()..loadMyReports(),
+                  child: UploadReportPage(routeId: routeId),
+                ),
+              ),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Register New Outlet',
+          subtitle: 'Add a new outlet under your assigned territory',
+          icon: Icons.add_business_outlined,
+          color: AppTheme.kOrange,
+          isLocked: false,
+          onTap: () {
+            final territoryId =
+                widget.normalizeTerritoryId(state.activeTerritoryId) ??
+                widget.normalizeTerritoryId(state.territoryId);
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RegisterOutletPage(territoryId: territoryId ?? ''),
+              ),
+            );
+          },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Report Incident',
+          subtitle: 'Capture route issues and field exceptions',
+          icon: Icons.warning_amber_rounded,
+          color: AppTheme.promotionMutedRed,
+          isLocked: !hasRoute,
+          onTap: () {
+            final routeId = state.activeRouteId;
+            final territoryId = state.activeTerritoryId;
+            if (routeId == null || territoryId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Missing route or territory details'),
                 ),
               );
-            },
-          ),
-          _buildActionCard(
-            context: context,
-            title: 'Log Store Visit',
-            icon: Icons.storefront,
-            color: AppTheme.kOrange,
-            isLocked: !hasRoute,
-            onTap: () {
-              if (state.activeRouteId != null && state.activeTerritoryId != null) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => OutletVisitPage(
-                      routeId: state.activeRouteId!,
-                      territoryId: state.activeTerritoryId!,
-                    ),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Missing route or territory details')),
-                );
-              }
-            },
-          ),
-          _buildActionCard(
-            context: context,
-            title: 'Report Incident',
-            icon: Icons.warning_amber,
-            color: AppTheme.promotionMutedRed,
-            isLocked: !hasRoute,
-            onTap: () {
-              final routeId = state.activeRouteId;
-              final territoryId = state.activeTerritoryId;
-              if (routeId == null || territoryId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Missing route or territory details')),
-                );
-                return;
-              }
+              return;
+            }
 
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ReportIncidentPage(
-                    routeId: routeId,
-                    territoryId: territoryId,
-                  ),
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ReportIncidentPage(
+                  routeId: routeId,
+                  territoryId: territoryId,
                 ),
-              );
-            },
-          ),
-          _buildActionCard(
-            context: context,
-            title: 'End of Day Report',
-            icon: Icons.assignment_turned_in,
-            color: AppTheme.securitySlate,
-            isLocked: !hasReportableRoute,
-            onTap: () {
-              final routeId = state.activeRouteId ?? '';
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => BlocProvider(
-                    create: (_) => UploadReportCubit()..loadMyReports(),
-                    child: UploadReportPage(routeId: routeId),
-                  ),
-                ),
-              );
-            },
-          ),
-          // Smart Route — always unlocked
-          _buildActionCard(
-            context: context,
-            title: 'Smart Route',
-            icon: Icons.map,
-            color: AppTheme.kBrown,
-            isLocked: false,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SmartRoutePage(
-                    routeId: state.activeRouteId,
-                    territoryId: state.activeTerritoryId,
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Outlet Visit — requires active route
-          _buildActionCard(
-            context: context,
-            title: 'Outlet Visit',
-            icon: Icons.store,
-            color: AppTheme.kBrown,
-            isLocked: !hasRoute,
-            onTap: () {
-              final routeId = state.activeRouteId ?? '';
-              final territoryId = state.activeTerritoryId ?? '';
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => OutletVisitPage(
-                    routeId: routeId,
-                    territoryId: territoryId,
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Returning Products — requires active route
-          _buildActionCard(
-            context: context,
-            title: 'Returning Products',
-            icon: Icons.assignment_return,
-            color: AppTheme.kBrown,
-            isLocked: !hasRoute,
-            onTap: () {
-              final routeId = state.activeRouteId ?? '';
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => BlocProvider(
-                    create: (_) => SalesReturnCubit(),
-                    child: ReturningProductsPage(routeId: routeId),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Uploads / Daily Report — always unlocked
-          _buildActionCard(
-            context: context,
-            title: 'Uploads / Daily Report',
-            icon: Icons.cloud_upload,
-            color: AppTheme.kBrown,
-            isLocked: false,
-            onTap: () {
-              final routeId = state.activeRouteId ?? '';
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => BlocProvider(
-                    create: (_) => UploadReportCubit()..loadMyReports(),
-                    child: UploadReportPage(routeId: routeId),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
   Widget _buildActionCard({
     required BuildContext context,
     required String title,
+    required String subtitle,
     required IconData icon,
     required Color color,
     required bool isLocked,
     VoidCallback? onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: isLocked ? null : onTap,
-          borderRadius: BorderRadius.circular(20),
-          splashColor: color.withOpacity(0.1),
-          highlightColor: color.withOpacity(0.05),
-          child: Opacity(
-            opacity: isLocked ? 0.6 : 1.0,
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: isLocked ? Colors.grey[200] : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isLocked
-                      ? Colors.transparent
-                      : AppTheme.kBrown.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: isLocked ? Colors.grey.shade200 : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isLocked
+                    ? Colors.transparent
+                    : AppTheme.kBrown.withValues(alpha: 0.14),
+              ),
+              boxShadow: [
+                if (!isLocked)
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: isLocked ? Colors.grey.shade400 : color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isLocked ? Colors.grey.shade600 : color,
+                  ),
                 ),
-                boxShadow: isLocked
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: color.withOpacity(0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: isLocked ? Colors.grey.shade700 : AppTheme.kTextDark,
+                          fontWeight: FontWeight.w800,
                         ),
-                      ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isLocked
-                          ? Colors.grey[400]
-                          : color.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isLocked ? Colors.grey[600] : color,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: isLocked ? Colors.grey[600] : AppTheme.kTextDark,
-                        fontWeight: FontWeight.w700,
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isLocked ? Colors.grey.shade600 : AppTheme.textSoft,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  if (isLocked)
-                    Icon(Icons.lock, color: Colors.grey[500], size: 24)
-                  else
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      color: AppTheme.kBrown.withOpacity(0.4),
-                      size: 16,
-                    ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  isLocked ? Icons.lock_outline : Icons.arrow_forward_ios_rounded,
+                  size: isLocked ? 20 : 18,
+                  color: isLocked ? Colors.grey.shade500 : AppTheme.kBrown,
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsTab(BuildContext context, HomeLoaded state) {
+    return SingleChildScrollView(
+      key: const ValueKey('sales-rep-settings'),
+      physics: const BouncingScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.kTextDark.withValues(alpha: 0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: AppTheme.kCream,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Icon(Icons.person, color: AppTheme.kBrown),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state.fullName,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.kTextDark,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Sales Representative',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppTheme.textSoft,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDetailTile(
+                    context,
+                    label: 'Assigned Territory',
+                    value: state.territoryName,
+                    icon: Icons.map_outlined,
+                  ),
+                  _buildDetailTile(
+                    context,
+                    label: 'Mobile Number',
+                    value: state.mobileNumber,
+                    icon: Icons.phone_outlined,
+                  ),
+                  _buildDetailTile(
+                    context,
+                    label: 'Email',
+                    value: state.email,
+                    icon: Icons.email_outlined,
+                  ),
+                  _buildDetailTile(
+                    context,
+                    label: 'Name',
+                    value: state.fullName,
+                    icon: Icons.badge_outlined,
+                  ),
+                  _buildDetailTile(
+                    context,
+                    label: 'Username',
+                    value: state.username,
+                    icon: Icons.alternate_email,
+                    isLast: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailTile(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+    bool isLast = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.kCream.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 20, color: AppTheme.kBrown),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSoft,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.kTextDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -590,11 +794,11 @@ class SalesRepHomePage extends StatelessWidget {
     final hour = DateTime.now().hour;
     if (hour < 12) {
       return 'Good Morning';
-    } else if (hour < 17) {
-      return 'Good Afternoon';
-    } else {
-      return 'Good Evening';
     }
+    if (hour < 17) {
+      return 'Good Afternoon';
+    }
+    return 'Good Evening';
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -607,6 +811,40 @@ class SalesRepHomePage extends StatelessWidget {
       context,
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
+    );
+  }
+}
+
+class _HeroProductImage extends StatelessWidget {
+  const _HeroProductImage({
+    required this.assetPath,
+    required this.left,
+    required this.top,
+    required this.height,
+  });
+
+  final String assetPath;
+  final double left;
+  final double top;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.24),
+              blurRadius: 12,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Image.asset(assetPath, height: height, fit: BoxFit.contain),
+      ),
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/core/services/territory_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mobile/features/sales_rep/data/services/register_outlet_service.dart';
-import 'package:mobile/features/sales_rep/data/services/route_setup_service.dart';
 
 abstract class RegisterOutletState {}
 
@@ -18,7 +18,17 @@ class RegisterOutletLocationFetched extends RegisterOutletState {
 
   final double latitude;
   final double longitude;
-  final List<Territory> territories;
+  final List<RegisterOutletTerritoryOption> territories;
+}
+
+class RegisterOutletTerritoryOption {
+  const RegisterOutletTerritoryOption({
+    required this.id,
+    required this.name,
+  });
+
+  final String id;
+  final String name;
 }
 
 class RegisterOutletSuccess extends RegisterOutletState {
@@ -37,14 +47,14 @@ class RegisterOutletError extends RegisterOutletState {
 class RegisterOutletCubit extends Cubit<RegisterOutletState> {
   RegisterOutletCubit({
     RegisterOutletService? registerOutletService,
-    RouteSetupService? routeSetupService,
+    TerritoryService? territoryService,
   }) : _registerOutletService =
            registerOutletService ?? RegisterOutletService(),
-       _routeSetupService = routeSetupService ?? RouteSetupService(),
+       _territoryService = territoryService ?? TerritoryService(),
        super(RegisterOutletInitial());
 
   final RegisterOutletService _registerOutletService;
-  final RouteSetupService _routeSetupService;
+  final TerritoryService _territoryService;
 
   Future<void> fetchLocationAndTerritories() async {
     emit(RegisterOutletLoading());
@@ -76,13 +86,27 @@ class RegisterOutletCubit extends Cubit<RegisterOutletState> {
       }
 
       // Fetch current location
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+      final position = await Geolocator.getCurrentPosition();
+      final assignment = await _territoryService.resolveAssignment(
+        latitude: position.latitude,
+        longitude: position.longitude,
       );
 
-      // Fetch territories
-      final territories = await _routeSetupService.fetchTerritories();
+      if (assignment == null) {
+        emit(
+          RegisterOutletError(
+            'No matching territory was found for your current location.',
+          ),
+        );
+        return;
+      }
+
+      final territories = [
+        RegisterOutletTerritoryOption(
+          id: assignment.territoryId,
+          name: assignment.territoryName,
+        ),
+      ];
 
       emit(
         RegisterOutletLocationFetched(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/app_theme.dart';
-import 'package:mobile/features/activity/domain/activity_entry.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/orders/domain/shop_order.dart';
+import 'package:mobile/features/home/presentation/widgets/activity_card.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
 
 class ShopOwnerOrdersTab extends StatelessWidget {
@@ -38,9 +38,9 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Review previous orders or open the cart from the top-right icon.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSoft,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                   ),
                 ],
               ),
@@ -150,10 +150,11 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                     const SizedBox(height: 18),
                     Text(
                       'Order details',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: AppTheme.textDark,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -161,10 +162,11 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                         Expanded(
                           child: Text(
                             order.orderCode,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: AppTheme.textDark,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: AppTheme.textDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                         Container(
@@ -178,10 +180,11 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                           ),
                           child: Text(
                             _friendlyStatus(order.status),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.primaryBrownDark,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppTheme.primaryBrownDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                       ],
@@ -232,7 +235,8 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                               children: <Widget>[
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: <Widget>[
                                       Text(
                                         item.productName,
@@ -259,9 +263,7 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                                 ),
                                 Text(
                                   _formatCurrency(item.lineTotal),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(
                                         color: AppTheme.primaryBrownDark,
                                         fontWeight: FontWeight.w800,
@@ -274,23 +276,30 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    Column(
                       children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            'Total',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: AppTheme.textDark,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        _OrderAmountRow(
+                          label: 'Total before promotion',
+                          value: _formatCurrency(order.subtotalBeforeDiscount),
                         ),
-                        Text(
-                          _formatCurrency(order.totalAmount),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppTheme.primaryBrownDark,
-                            fontWeight: FontWeight.w800,
+                        if (order.promotionDiscountTotal > 0) ...<Widget>[
+                          const SizedBox(height: 10),
+                          _OrderAmountRow(
+                            label:
+                                order.appliedPromotionCode?.trim().isNotEmpty ==
+                                    true
+                                ? 'Promotion discount (${order.appliedPromotionCode})'
+                                : 'Promotion discount',
+                            value:
+                                '-${_formatCurrency(order.promotionDiscountTotal)}',
+                            valueColor: AppTheme.proceedOrderOlive,
                           ),
+                        ],
+                        const SizedBox(height: 10),
+                        _OrderAmountRow(
+                          label: 'Total after promotion',
+                          value: _formatCurrency(order.totalAfterDiscount),
+                          isEmphasized: true,
                         ),
                       ],
                     ),
@@ -309,6 +318,50 @@ class ShopOwnerOrdersTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _OrderAmountRow extends StatelessWidget {
+  const _OrderAmountRow({
+    required this.label,
+    required this.value,
+    this.isEmphasized = false,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final bool isEmphasized;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = isEmphasized
+        ? Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppTheme.textDark,
+            fontWeight: FontWeight.w700,
+          )
+        : Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: AppTheme.textSoft,
+            fontWeight: FontWeight.w600,
+          );
+
+    final valueStyle = isEmphasized
+        ? Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: valueColor ?? AppTheme.primaryBrownDark,
+            fontWeight: FontWeight.w800,
+          )
+        : Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: valueColor ?? AppTheme.primaryBrownDark,
+            fontWeight: FontWeight.w700,
+          );
+
+    return Row(
+      children: <Widget>[
+        Expanded(child: Text(label, style: labelStyle)),
+        Text(value, style: valueStyle),
+      ],
     );
   }
 }
@@ -338,9 +391,9 @@ class ShopOwnerActivityTab extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           'Important alerts such as account updates, sign-ins, sign-outs, and order confirmations are shown here.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.textSoft,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
         ),
         const SizedBox(height: 20),
         if (controller.isLoadingActivities)
@@ -353,7 +406,8 @@ class ShopOwnerActivityTab extends StatelessWidget {
         else if (controller.activities.isEmpty)
           const _MessageCard(
             title: 'No activity yet',
-            message: 'Your alerts will appear here once account activity starts.',
+            message:
+                'Your alerts will appear here once account activity starts.',
           )
         else
           ListView.separated(
@@ -363,7 +417,7 @@ class ShopOwnerActivityTab extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
               final activity = controller.activities[index];
-              return _ActivityCard(activity: activity);
+              return ActivityCard(activity: activity);
             },
           ),
       ],
@@ -398,9 +452,9 @@ class ShopOwnerSettingsTab extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           'Manage security for your account under the same shop-owner theme.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.textSoft,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
         ),
         const SizedBox(height: 20),
         Container(
@@ -442,9 +496,9 @@ class ShopOwnerSettingsTab extends StatelessWidget {
                 ),
                 subtitle: Text(
                   'Change your password by entering the current password and the new password twice.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: onSecurityTap,
@@ -540,9 +594,9 @@ class _OrderHistoryCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     _formatDate(order.placedAt),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSoft,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                   ),
                 ),
                 Text(
@@ -556,142 +610,6 @@ class _OrderHistoryCard extends StatelessWidget {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityCard extends StatelessWidget {
-  const _ActivityCard({required this.activity});
-
-  final ActivityEntry activity;
-
-  @override
-  Widget build(BuildContext context) {
-    final orderCode = activity.metadata?['orderCode']?.toString();
-    final pin = activity.metadata?['pin']?.toString();
-    final placedAtRaw = activity.metadata?['placedAt']?.toString();
-    final expiresAtRaw = activity.metadata?['expiresAt']?.toString();
-    final placedAt = placedAtRaw == null ? null : DateTime.tryParse(placedAtRaw);
-    final expiresAt = expiresAtRaw == null ? null : DateTime.tryParse(expiresAtRaw);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.outlineWarm.withAlpha(95)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppTheme.primaryBrownDark.withAlpha(10),
-            blurRadius: 20,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            activity.title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppTheme.textDark,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            activity.message,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppTheme.textSoft,
-            ),
-          ),
-          if (pin != null && pin.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceTint,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppTheme.outlineWarm),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Confirmation PIN',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSoft,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    pin,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppTheme.primaryBrownDark,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  if (expiresAt != null) ...<Widget>[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Share before ${_formatTime(expiresAt.toLocal())} on ${_formatDate(expiresAt.toLocal())}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSoft,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _ActivityMetaChip(label: _formatDate(activity.createdAt)),
-              _ActivityMetaChip(label: _formatTime(activity.createdAt)),
-              if (orderCode != null && orderCode.isNotEmpty)
-                _ActivityMetaChip(label: 'Order: $orderCode'),
-              if (placedAt != null)
-                _ActivityMetaChip(
-                  label: 'Placed: ${_formatDate(placedAt.toLocal())}',
-                ),
-              if (expiresAt != null)
-                _ActivityMetaChip(
-                  label: 'Expires: ${_formatTime(expiresAt.toLocal())}',
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActivityMetaChip extends StatelessWidget {
-  const _ActivityMetaChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceTint,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppTheme.primaryBrownDark,
-          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -726,9 +644,9 @@ class _MessageCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSoft,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
           ),
         ],
       ),
@@ -763,7 +681,11 @@ String _friendlyStatus(String status) {
   return normalized
       .toLowerCase()
       .split(RegExp(r'[_\s]+'))
-      .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1)}',
+      )
       .join(' ');
 }
 

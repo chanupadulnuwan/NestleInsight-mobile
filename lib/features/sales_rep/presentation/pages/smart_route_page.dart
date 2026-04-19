@@ -9,11 +9,7 @@ import 'outlet_visit_page.dart';
 import '../cubit/smart_route_cubit.dart';
 
 class SmartRoutePage extends StatelessWidget {
-  const SmartRoutePage({
-    super.key,
-    this.routeId,
-    this.territoryId,
-  });
+  const SmartRoutePage({super.key, this.routeId, this.territoryId});
 
   final String? routeId;
   final String? territoryId;
@@ -69,7 +65,8 @@ class SmartRoutePage extends StatelessWidget {
             final stop = state.currentStop;
 
             return RefreshIndicator(
-              onRefresh: () => context.read<SmartRouteCubit>().refreshSuggestion(),
+              onRefresh: () =>
+                  context.read<SmartRouteCubit>().refreshSuggestion(),
               color: AppTheme.primaryBrown,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -83,10 +80,7 @@ class SmartRoutePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   if (state.isAllDone || stop == null)
-                    _AllDoneCard(
-                      session: session,
-                      progress: progress,
-                    )
+                    _AllDoneCard(session: session, progress: progress)
                   else
                     _SuggestedStopCard(stop: stop),
                   const SizedBox(height: 16),
@@ -96,7 +90,8 @@ class SmartRoutePage extends StatelessWidget {
                       routeId: routeId,
                       territoryId: territoryId,
                     ),
-                  if (!state.isAllDone && stop != null) const SizedBox(height: 16),
+                  if (!state.isAllDone && stop != null)
+                    const SizedBox(height: 16),
                   _AssignedOutletsCard(outlets: state.rankedOutlets),
                 ],
               ),
@@ -129,32 +124,23 @@ Future<void> _openMapsNavigation({
 
   final query = hasCoordinates
       ? '$latitude,$longitude'
-      : <String>[outletName, safeAddress]
-            .where((part) => part.isNotEmpty)
-            .join(', ');
+      : <String>[
+          outletName,
+          safeAddress,
+        ].where((part) => part.isNotEmpty).join(', ');
 
   final directionsUrl = Uri.https(
     'www.google.com',
     '/maps/dir/',
-    <String, String>{
-      'api': '1',
-      'destination': query,
-      'travelmode': 'driving',
-    },
+    <String, String>{'api': '1', 'destination': query, 'travelmode': 'driving'},
   );
   final searchUrl = Uri.https(
     'www.google.com',
     '/maps/search/',
-    <String, String>{
-      'api': '1',
-      'query': query,
-    },
+    <String, String>{'api': '1', 'query': query},
   );
 
-  final candidates = <Uri>[
-    directionsUrl,
-    searchUrl,
-  ];
+  final candidates = <Uri>[directionsUrl, searchUrl];
 
   for (final candidate in candidates) {
     final didLaunch = await launchUrl(
@@ -171,9 +157,7 @@ Future<void> _openMapsNavigation({
   }
 
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Could not open a maps app on this device.'),
-    ),
+    const SnackBar(content: Text('Could not open a maps app on this device.')),
   );
 }
 
@@ -257,16 +241,16 @@ class _RouteHeroCard extends StatelessWidget {
                     Text(
                       'Today\'s route',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       _formatDate(session.routeDate),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.white.withAlpha(220),
-                          ),
+                        color: Colors.white.withAlpha(220),
+                      ),
                     ),
                   ],
                 ),
@@ -304,10 +288,7 @@ class _RouteHeroCard extends StatelessWidget {
 }
 
 class _ProgressHeaderCard extends StatelessWidget {
-  const _ProgressHeaderCard({
-    required this.progress,
-    required this.isAllDone,
-  });
+  const _ProgressHeaderCard({required this.progress, required this.isAllDone});
 
   final SmartRouteProgress progress;
   final bool isAllDone;
@@ -331,19 +312,16 @@ class _ProgressHeaderCard extends StatelessWidget {
                 ? 'No assigned stops yet'
                 : 'Stop $displayStopNumber of ${progress.totalStops}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppTheme.textDark,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             progress.totalStops == 0
                 ? 'Assigned outlets will appear here once a smart-route session is ready.'
                 : 'Visited: ${progress.completedStops} | Skipped: ${progress.skippedStops} | In progress: ${progress.inProgressStops}',
-            style: const TextStyle(
-              color: AppTheme.textSoft,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
           ),
         ],
       ),
@@ -352,10 +330,7 @@ class _ProgressHeaderCard extends StatelessWidget {
 }
 
 class _AllDoneCard extends StatelessWidget {
-  const _AllDoneCard({
-    required this.session,
-    required this.progress,
-  });
+  const _AllDoneCard({required this.session, required this.progress});
 
   final SmartRouteSession session;
   final SmartRouteProgress progress;
@@ -397,10 +372,7 @@ class _AllDoneCard extends StatelessWidget {
             session.totalStops == 0
                 ? 'No assigned outlets were found for today.'
                 : 'All suggested outlets have been completed or skipped. Completed: ${progress.completedStops}. Skipped: ${progress.skippedStops}.',
-            style: const TextStyle(
-              color: AppTheme.textSoft,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
           ),
         ],
       ),
@@ -444,14 +416,15 @@ class _SuggestedStopCard extends StatelessWidget {
                     Text(
                       _headlineForRecommendation(stop.recommendation),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSoft,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppTheme.textSoft,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       stop.outletName,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
                             color: AppTheme.textDark,
                             fontWeight: FontWeight.w900,
                           ),
@@ -513,10 +486,7 @@ class _SuggestedStopCard extends StatelessWidget {
                 icon: Icons.assignment_turned_in_outlined,
                 label: stop.purpose,
               ),
-              _InfoChip(
-                icon: Icons.flag_outlined,
-                label: stop.priorityBand,
-              ),
+              _InfoChip(icon: Icons.flag_outlined, label: stop.priorityBand),
               if (stop.distanceKm != null)
                 _InfoChip(
                   icon: Icons.near_me_outlined,
@@ -587,19 +557,16 @@ class _ActionPanel extends StatelessWidget {
           Text(
             'Next action',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppTheme.textDark,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             stop.status == 'in_progress'
                 ? 'The stop is already in progress. Re-open the store visit or mark the smart-route stop complete after the visit is done.'
                 : 'Start this suggested visit, navigate to the outlet, or skip it with a reason if it cannot be served now.',
-            style: const TextStyle(
-              color: AppTheme.textSoft,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
           ),
           if (!_hasVisitContext) ...<Widget>[
             const SizedBox(height: 10),
@@ -630,9 +597,7 @@ class _ActionPanel extends StatelessWidget {
                         : Icons.play_arrow_rounded,
                   ),
                   label: Text(
-                    stop.status == 'in_progress'
-                        ? 'Open Visit'
-                        : 'Start Visit',
+                    stop.status == 'in_progress' ? 'Open Visit' : 'Start Visit',
                   ),
                 ),
               ),
@@ -666,9 +631,9 @@ class _ActionPanel extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: stop.status == 'in_progress'
                       ? () {
-                          context
-                              .read<SmartRouteCubit>()
-                              .completeCurrentStop(stop.id);
+                          context.read<SmartRouteCubit>().completeCurrentStop(
+                            stop.id,
+                          );
                         }
                       : null,
                   style: OutlinedButton.styleFrom(
@@ -739,7 +704,9 @@ class _ActionPanel extends StatelessWidget {
 
     SmartRouteStop? activeStop = stop;
     if (stop.status != 'in_progress') {
-      activeStop = await context.read<SmartRouteCubit>().startCurrentStop(stop.id);
+      activeStop = await context.read<SmartRouteCubit>().startCurrentStop(
+        stop.id,
+      );
       if (!context.mounted || activeStop == null) {
         return;
       }
@@ -788,10 +755,10 @@ class _ActionPanel extends StatelessWidget {
           child: SkipBottomSheetContent(
             onSubmit: (reasonCode, freeText) {
               parentContext.read<SmartRouteCubit>().skipCurrentStop(
-                    stopId: stopId,
-                    reasonCode: reasonCode,
-                    freeText: freeText,
-                  );
+                stopId: stopId,
+                reasonCode: reasonCode,
+                freeText: freeText,
+              );
               Navigator.of(bottomSheetContext).pop();
             },
           ),
@@ -821,25 +788,27 @@ class _AssignedOutletsCard extends StatelessWidget {
           Text(
             'Today\'s assigned outlets',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppTheme.textDark,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             outlets.isEmpty
                 ? 'No outlets were assigned to this smart-route session yet.'
                 : 'Live GPS distance is shown in kilometers and the list is ranked from the nearest stop to the farthest when location is available.',
-            style: const TextStyle(
-              color: AppTheme.textSoft,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
           ),
           if (outlets.isNotEmpty) const SizedBox(height: 16),
           if (outlets.isEmpty)
             const _EmptyAssignedState()
           else
-            ...outlets.map((outlet) => _AssignedOutletTile(outlet: outlet)),
+            ...outlets.asMap().entries.map(
+              (entry) => _AssignedOutletTile(
+                outlet: entry.value,
+                displayOrder: entry.key + 1,
+              ),
+            ),
         ],
       ),
     );
@@ -847,9 +816,10 @@ class _AssignedOutletsCard extends StatelessWidget {
 }
 
 class _AssignedOutletTile extends StatelessWidget {
-  const _AssignedOutletTile({required this.outlet});
+  const _AssignedOutletTile({required this.outlet, required this.displayOrder});
 
   final SmartRouteRankedOutlet outlet;
+  final int displayOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -863,7 +833,9 @@ class _AssignedOutletTile extends StatelessWidget {
         color: AppTheme.surfaceWarm,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: outlet.isSuggestedStop ? AppTheme.primaryBrown : AppTheme.outlineWarm,
+          color: outlet.isSuggestedStop
+              ? AppTheme.primaryBrown
+              : AppTheme.outlineWarm,
           width: outlet.isSuggestedStop ? 1.4 : 1,
         ),
       ),
@@ -882,7 +854,7 @@ class _AssignedOutletTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${summary.suggestedSeq}',
+                  '$displayOrder',
                   style: const TextStyle(
                     color: AppTheme.primaryBrownDark,
                     fontWeight: FontWeight.w800,
@@ -1043,10 +1015,7 @@ class _ListBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: foregroundColor,
-          fontWeight: FontWeight.w700,
-        ),
+        style: TextStyle(color: foregroundColor, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1158,10 +1127,7 @@ class _StatusPill extends StatelessWidget {
 }
 
 class SkipBottomSheetContent extends StatefulWidget {
-  const SkipBottomSheetContent({
-    super.key,
-    required this.onSubmit,
-  });
+  const SkipBottomSheetContent({super.key, required this.onSubmit});
 
   final void Function(String reasonCode, String freeText) onSubmit;
 
@@ -1205,9 +1171,9 @@ class _SkipBottomSheetContentState extends State<SkipBottomSheetContent> {
   @override
   Widget build(BuildContext context) {
     final selectedReason = _reasons.cast<_SkipReasonOption?>().firstWhere(
-          (reason) => reason?.code == _selectedReasonCode,
-          orElse: () => null,
-        );
+      (reason) => reason?.code == _selectedReasonCode,
+      orElse: () => null,
+    );
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -1225,24 +1191,19 @@ class _SkipBottomSheetContentState extends State<SkipBottomSheetContent> {
               Text(
                 'Skip suggested outlet',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.textDark,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Choose the reason for skipping. This update is shared with route managers so the next suggestion stays accurate.',
-                style: TextStyle(
-                  color: AppTheme.textSoft,
-                  height: 1.4,
-                ),
+                style: TextStyle(color: AppTheme.textSoft, height: 1.4),
               ),
               const SizedBox(height: 18),
               DropdownButtonFormField<String>(
                 initialValue: _selectedReasonCode,
-                decoration: const InputDecoration(
-                  labelText: 'Skip reason',
-                ),
+                decoration: const InputDecoration(labelText: 'Skip reason'),
                 items: _reasons
                     .map(
                       (reason) => DropdownMenuItem<String>(

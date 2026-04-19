@@ -1,15 +1,23 @@
 import 'package:dio/dio.dart';
-
 import '../../../../core/network/dio_client.dart';
 
 class SmartRouteSession {
+  final String id;
+  final String userId;
+  final String status;
+  final DateTime routeDate;
+  final int totalStops;
+  final int pendingStops;
+  final int inProgressStops;
+  final int completedStops;
+  final int skippedStops;
+  final List<SmartRouteOutletSummary> assignedOutlets;
+
   SmartRouteSession({
     required this.id,
     required this.userId,
     required this.status,
     required this.routeDate,
-    this.startTime,
-    this.endTime,
     required this.totalStops,
     required this.pendingStops,
     required this.inProgressStops,
@@ -19,73 +27,24 @@ class SmartRouteSession {
   });
 
   factory SmartRouteSession.fromJson(Map<String, dynamic> json) {
-    final rawAssignedOutlets = json['assignedOutlets'];
     return SmartRouteSession(
-      id: json['id']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? '',
-      status: json['status']?.toString() ?? 'pending',
-      routeDate:
-          DateTime.tryParse(json['routeDate']?.toString() ?? '') ??
-          DateTime.now(),
-      startTime: DateTime.tryParse(json['startTime']?.toString() ?? ''),
-      endTime: DateTime.tryParse(json['endTime']?.toString() ?? ''),
-      totalStops: (json['totalStops'] as num?)?.toInt() ?? 0,
-      pendingStops: (json['pendingStops'] as num?)?.toInt() ?? 0,
-      inProgressStops: (json['inProgressStops'] as num?)?.toInt() ?? 0,
-      completedStops: (json['completedStops'] as num?)?.toInt() ?? 0,
-      skippedStops: (json['skippedStops'] as num?)?.toInt() ?? 0,
-      assignedOutlets: rawAssignedOutlets is List
-          ? rawAssignedOutlets
-                .whereType<Map>()
-                .map(
-                  (item) => SmartRouteOutletSummary.fromJson(
-                    Map<String, dynamic>.from(item),
-                  ),
-                )
-                .toList(growable: false)
-          : const <SmartRouteOutletSummary>[],
+      id: json['id'],
+      userId: json['userId'],
+      status: json['status'],
+      routeDate: DateTime.parse(json['routeDate']),
+      totalStops: json['totalStops'] ?? 0,
+      pendingStops: json['pendingStops'] ?? 0,
+      inProgressStops: json['inProgressStops'] ?? 0,
+      completedStops: json['completedStops'] ?? 0,
+      skippedStops: json['skippedStops'] ?? 0,
+      assignedOutlets: (json['assignedOutlets'] as List? ?? [])
+          .map((e) => SmartRouteOutletSummary.fromJson(e))
+          .toList(),
     );
   }
-
-  final String id;
-  final String userId;
-  final String status;
-  final DateTime routeDate;
-  final DateTime? startTime;
-  final DateTime? endTime;
-  final int totalStops;
-  final int pendingStops;
-  final int inProgressStops;
-  final int completedStops;
-  final int skippedStops;
-  final List<SmartRouteOutletSummary> assignedOutlets;
 }
 
 class SmartRouteOutletSummary {
-  const SmartRouteOutletSummary({
-    required this.id,
-    required this.outletName,
-    required this.ownerName,
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-    required this.suggestedSeq,
-    required this.stopStatus,
-  });
-
-  factory SmartRouteOutletSummary.fromJson(Map<String, dynamic> json) {
-    return SmartRouteOutletSummary(
-      id: json['id']?.toString() ?? '',
-      outletName: json['outletName']?.toString() ?? 'Unknown outlet',
-      ownerName: json['ownerName']?.toString() ?? 'Owner not set',
-      address: json['address']?.toString(),
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      suggestedSeq: (json['suggestedSeq'] as num?)?.toInt() ?? 0,
-      stopStatus: json['stopStatus']?.toString() ?? 'pending',
-    );
-  }
-
   final String id;
   final String outletName;
   final String ownerName;
@@ -94,22 +53,62 @@ class SmartRouteOutletSummary {
   final double? longitude;
   final int suggestedSeq;
   final String stopStatus;
-}
 
-class SmartRouteStop {
-  SmartRouteStop({
+  SmartRouteOutletSummary({
     required this.id,
-    required this.routeSessionId,
-    required this.outletId,
     required this.outletName,
     required this.ownerName,
     this.address,
     this.latitude,
     this.longitude,
     required this.suggestedSeq,
-    this.actualSeq,
-    required this.purpose,
+    required this.stopStatus,
+  });
+
+  factory SmartRouteOutletSummary.fromJson(Map<String, dynamic> json) {
+    return SmartRouteOutletSummary(
+      id: json['id'],
+      outletName: json['outletName'],
+      ownerName: json['ownerName'],
+      address: json['address'],
+      latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
+      longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
+      suggestedSeq: json['suggestedSeq'] ?? 0,
+      stopStatus: json['stopStatus'] ?? 'pending',
+    );
+  }
+}
+
+class SmartRouteStop {
+  final String id;
+  final String routeSessionId;
+  final String outletId;
+  final int suggestedSeq;
+  final String status;
+  final String purpose;
+  final String outletName;
+  final String ownerName;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
+  final double? priorityScore;
+  final String priorityBand;
+  final double? distanceKm;
+  final int? etaMinutes;
+  final String recommendation;
+
+  SmartRouteStop({
+    required this.id,
+    required this.routeSessionId,
+    required this.outletId,
+    required this.suggestedSeq,
     required this.status,
+    required this.purpose,
+    required this.outletName,
+    required this.ownerName,
+    this.address,
+    this.latitude,
+    this.longitude,
     this.priorityScore,
     required this.priorityBand,
     this.distanceKm,
@@ -117,50 +116,76 @@ class SmartRouteStop {
     required this.recommendation,
   });
 
-  factory SmartRouteStop.fromJson(Map<String, dynamic> json) {
+  SmartRouteStop copyWith({
+    String? id,
+    String? routeSessionId,
+    String? outletId,
+    int? suggestedSeq,
+    String? status,
+    String? purpose,
+    String? outletName,
+    String? ownerName,
+    String? address,
+    double? latitude,
+    double? longitude,
+    double? priorityScore,
+    String? priorityBand,
+    double? distanceKm,
+    int? etaMinutes,
+    String? recommendation,
+  }) {
     return SmartRouteStop(
-      id: json['id']?.toString() ?? '',
-      routeSessionId: json['routeSessionId']?.toString() ?? '',
-      outletId: json['outletId']?.toString() ?? '',
-      outletName: json['outletName']?.toString() ?? 'Unknown outlet',
-      ownerName: json['ownerName']?.toString() ?? 'Owner not set',
-      address: json['address']?.toString(),
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      suggestedSeq: (json['suggestedSeq'] as num?)?.toInt() ?? 0,
-      actualSeq: (json['actualSeq'] as num?)?.toInt(),
-      purpose: json['purpose']?.toString() ?? 'Visit',
-      status: json['status']?.toString() ?? 'pending',
-      priorityScore: (json['priorityScore'] as num?)?.toDouble(),
-      priorityBand: json['priorityBand']?.toString() ?? 'Standard',
-      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
-      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
-      recommendation:
-          json['recommendation']?.toString() ?? 'follow-sequence',
+      id: id ?? this.id,
+      routeSessionId: routeSessionId ?? this.routeSessionId,
+      outletId: outletId ?? this.outletId,
+      suggestedSeq: suggestedSeq ?? this.suggestedSeq,
+      status: status ?? this.status,
+      purpose: purpose ?? this.purpose,
+      outletName: outletName ?? this.outletName,
+      ownerName: ownerName ?? this.ownerName,
+      address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      priorityScore: priorityScore ?? this.priorityScore,
+      priorityBand: priorityBand ?? this.priorityBand,
+      distanceKm: distanceKm ?? this.distanceKm,
+      etaMinutes: etaMinutes ?? this.etaMinutes,
+      recommendation: recommendation ?? this.recommendation,
     );
   }
 
-  final String id;
-  final String routeSessionId;
-  final String outletId;
-  final String outletName;
-  final String ownerName;
-  final String? address;
-  final double? latitude;
-  final double? longitude;
-  final int suggestedSeq;
-  final int? actualSeq;
-  final String purpose;
-  final String status;
-  final double? priorityScore;
-  final String priorityBand;
-  final double? distanceKm;
-  final int? etaMinutes;
-  final String recommendation;
+  factory SmartRouteStop.fromJson(Map<String, dynamic> json) {
+    return SmartRouteStop(
+      id: json['id'],
+      routeSessionId: json['routeSessionId'],
+      outletId: json['outletId'],
+      suggestedSeq: json['suggestedSeq'],
+      status: json['status'],
+      purpose: json['purpose'] ?? 'Visit',
+      outletName: json['outletName'] ?? 'Unknown outlet',
+      ownerName: json['ownerName'] ?? 'Owner not set',
+      address: json['address'],
+      latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
+      longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
+      priorityScore: json['priorityScore']?.toDouble(),
+      priorityBand: json['priorityBand'] ?? 'Standard',
+      distanceKm: json['distanceKm']?.toDouble(),
+      etaMinutes: json['etaMinutes'],
+      recommendation: json['recommendation'] ?? 'follow-sequence',
+    );
+  }
 }
 
 class SmartRouteProgress {
-  const SmartRouteProgress({
+  final String sessionId;
+  final int totalStops;
+  final int pendingStops;
+  final int inProgressStops;
+  final int completedStops;
+  final int skippedStops;
+  final int currentStopNumber;
+
+  SmartRouteProgress({
     required this.sessionId,
     required this.totalStops,
     required this.pendingStops,
@@ -172,31 +197,21 @@ class SmartRouteProgress {
 
   factory SmartRouteProgress.fromJson(Map<String, dynamic> json) {
     return SmartRouteProgress(
-      sessionId: json['sessionId']?.toString() ?? '',
-      totalStops: (json['totalStops'] as num?)?.toInt() ?? 0,
-      pendingStops: (json['pendingStops'] as num?)?.toInt() ?? 0,
-      inProgressStops: (json['inProgressStops'] as num?)?.toInt() ?? 0,
-      completedStops: (json['completedStops'] as num?)?.toInt() ?? 0,
-      skippedStops: (json['skippedStops'] as num?)?.toInt() ?? 0,
-      currentStopNumber: (json['currentStopNumber'] as num?)?.toInt() ?? 0,
+      sessionId: json['sessionId'],
+      totalStops: json['totalStops'] ?? 0,
+      pendingStops: json['pendingStops'] ?? 0,
+      inProgressStops: json['inProgressStops'] ?? 0,
+      completedStops: json['completedStops'] ?? 0,
+      skippedStops: json['skippedStops'] ?? 0,
+      currentStopNumber: json['currentStopNumber'] ?? 0,
     );
   }
-
-  final String sessionId;
-  final int totalStops;
-  final int pendingStops;
-  final int inProgressStops;
-  final int completedStops;
-  final int skippedStops;
-  final int currentStopNumber;
 }
 
 class SmartRouteServiceException implements Exception {
-  SmartRouteServiceException(this.message, [this.code]);
-
   final String message;
   final String? code;
-
+  SmartRouteServiceException(this.message, [this.code]);
   @override
   String toString() => 'SmartRouteServiceException: $message';
 }
@@ -207,91 +222,61 @@ class SmartRouteService {
   Future<SmartRouteSession> getOrCreateSession() async {
     try {
       final response = await _dio.get('/smart-route/session');
-      return SmartRouteSession.fromJson(Map<String, dynamic>.from(response.data));
+      return SmartRouteSession.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error fetching session',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching session',
       );
     }
   }
 
   Future<SmartRouteProgress> getProgress({required String sessionId}) async {
     try {
-      final response = await _dio.get(
-        '/smart-route/progress',
-        queryParameters: {'sessionId': sessionId},
-      );
-      return SmartRouteProgress.fromJson(
-        Map<String, dynamic>.from(response.data),
-      );
+      final response = await _dio.get('/smart-route/progress', queryParameters: {'sessionId': sessionId});
+      return SmartRouteProgress.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error fetching progress',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching progress',
       );
     }
   }
 
-  Future<SmartRouteStop?> getNextStop({
-    required String sessionId,
-    double? lat,
-    double? lng,
-  }) async {
+  Future<SmartRouteStop?> getNextStop({required String sessionId, double? lat, double? lng}) async {
     try {
-      final response = await _dio.get(
-        '/smart-route/next-stop',
-        queryParameters: {
-          'sessionId': sessionId,
-          'lat': ?lat,
-          'lng': ?lng,
-        },
-      );
-      if (response.statusCode == 204 ||
-          response.data == null ||
-          response.data == '') {
-        return null;
-      }
-      return SmartRouteStop.fromJson(Map<String, dynamic>.from(response.data));
+      final response = await _dio.get('/smart-route/next-stop', queryParameters: {
+        'sessionId': sessionId,
+        // ignore: use_null_aware_elements
+        if (lat != null) 'lat': lat,
+        // ignore: use_null_aware_elements
+        if (lng != null) 'lng': lng,
+      });
+      if (response.statusCode == 204 || response.data == null || response.data == '') return null;
+      return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error fetching next stop',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching next stop',
       );
     }
   }
 
   Future<SmartRouteStop> startStop({required String stopId}) async {
     try {
-      final response = await _dio.post(
-        '/smart-route/start',
-        data: {'stopId': stopId},
-      );
-      return SmartRouteStop.fromJson(Map<String, dynamic>.from(response.data));
+      final response = await _dio.post('/smart-route/start', data: {'stopId': stopId});
+      return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error starting stop',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error starting stop',
       );
     }
   }
 
   Future<SmartRouteStop> completeStop({required String stopId}) async {
     try {
-      final response = await _dio.post(
-        '/smart-route/complete',
-        data: {'stopId': stopId},
-      );
-      return SmartRouteStop.fromJson(Map<String, dynamic>.from(response.data));
+      final response = await _dio.post('/smart-route/complete', data: {'stopId': stopId});
+      return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error completing stop',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error completing stop',
       );
     }
   }
@@ -304,27 +289,20 @@ class SmartRouteService {
     double? lng,
   }) async {
     try {
-      final response = await _dio.post(
-        '/smart-route/skip',
-        data: {
-          'stopId': stopId,
-          'reasonCode': reasonCode,
-          'freeText': freeText,
-          'lat': ?lat,
-          'lng': ?lng,
-        },
-      );
-      if (response.statusCode == 204 ||
-          response.data == null ||
-          response.data == '') {
-        return null;
-      }
-      return SmartRouteStop.fromJson(Map<String, dynamic>.from(response.data));
+      final response = await _dio.post('/smart-route/skip', data: {
+        'stopId': stopId,
+        'reasonCode': reasonCode,
+        'freeText': freeText,
+        // ignore: use_null_aware_elements
+        if (lat != null) 'lat': lat,
+        // ignore: use_null_aware_elements
+        if (lng != null) 'lng': lng,
+      });
+      if (response.statusCode == 204 || response.data == null || response.data == '') return null;
+      return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error skipping stop',
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error skipping stop',
       );
     }
   }

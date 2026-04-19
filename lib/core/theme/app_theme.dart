@@ -8,6 +8,7 @@ class AppTheme {
   static const Color promotionMutedRed = Color(0xFFC85C53);
   static const Color addToCartClay = Color(0xFFB78363);
   static const Color proceedOrderOlive = Color(0xFF6F7F58);
+  static const Color rejectOrderRed = Color(0xFF9B4B46);
   static const Color securitySlate = Color(0xFF61758A);
   static const Color surfaceTint = Color(0xFFF6EBDD);
   static const Color surfaceWarm = Color(0xFFFFFBF7);

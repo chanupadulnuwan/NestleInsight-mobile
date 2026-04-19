@@ -38,18 +38,22 @@ class SalesReturnServiceException implements Exception {
 class SalesReturnService {
   final Dio _dio = DioClient.instance.client;
 
-  Future<void> logReturn({required String routeId, required ReturnItemLog item}) async {
+  Future<void> logReturn({
+    required String routeId,
+    required ReturnItemLog item,
+  }) async {
     try {
-      await _dio.post(
-        '/sales-routes/$routeId/log-return',
-        data: item.toJson(),
-      );
+      await _dio.post('/sales-routes/$routeId/log-return', data: item.toJson());
     } on DioException catch (e) {
       throw SalesReturnServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error logging return item',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error logging return item',
       );
     } catch (e) {
-      throw SalesReturnServiceException('Failed to process return item logging: $e');
+      throw SalesReturnServiceException(
+        'Failed to process return item logging: $e',
+      );
     }
   }
 }

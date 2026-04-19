@@ -312,8 +312,9 @@ class _DeliverOrderPageState extends State<DeliverOrderPage> {
                             onChanged: (v) {
                               if (v.length == 1 && index < 5) {
                                 _focusNodes[index + 1].requestFocus();
-                              } else if (v.isEmpty && index > 0)
+                              } else if (v.isEmpty && index > 0) {
                                 _focusNodes[index - 1].requestFocus();
+                              }
                               setState(() {});
                             },
                           ),

@@ -7,22 +7,10 @@ class RouteSetupInitial extends RouteSetupState {}
 
 class RouteSetupLoading extends RouteSetupState {}
 
-class RouteSetupTeritoriesLoaded extends RouteSetupState {
-  RouteSetupTeritoriesLoaded(this.territories);
+class RouteSetupLoaded extends RouteSetupState {
+  RouteSetupLoaded(this.options);
 
-  final List<Territory> territories;
-}
-
-class RouteSetupWarehousesLoaded extends RouteSetupState {
-  RouteSetupWarehousesLoaded(
-    this.territories,
-    this.warehouses,
-    this.selectedTerritoryId,
-  );
-
-  final List<Territory> territories;
-  final List<Warehouse> warehouses;
-  final String selectedTerritoryId;
+  final RouteSetupOptions options;
 }
 
 class RouteSetupError extends RouteSetupState {
@@ -33,42 +21,19 @@ class RouteSetupError extends RouteSetupState {
 
 class RouteSetupCubit extends Cubit<RouteSetupState> {
   RouteSetupCubit({RouteSetupService? routeSetupService})
-    : _routeSetupService = routeSetupService ?? RouteSetupService(),
-      super(RouteSetupInitial());
+      : _routeSetupService = routeSetupService ?? RouteSetupService(),
+        super(RouteSetupInitial());
 
   final RouteSetupService _routeSetupService;
 
-  Future<void> loadTerritories() async {
+  Future<void> loadSetupOptions() async {
     emit(RouteSetupLoading());
 
     try {
-      final territories = await _routeSetupService.fetchTerritories();
-      emit(RouteSetupTeritoriesLoaded(territories));
+      final options = await _routeSetupService.fetchSetupOptions();
+      emit(RouteSetupLoaded(options));
     } on RouteSetupServiceException catch (error) {
       emit(RouteSetupError(error.message));
-    }
-  }
-
-  Future<void> selectTerritory(String territoryId) async {
-    final currentState = state;
-    if (currentState is RouteSetupTeritoriesLoaded) {
-      emit(RouteSetupLoading());
-
-      try {
-        final warehouses = await _routeSetupService.fetchWarehouses(
-          territoryId: territoryId,
-        );
-        emit(
-          RouteSetupWarehousesLoaded(
-            currentState.territories,
-            warehouses,
-            territoryId,
-          ),
-        );
-      } on RouteSetupServiceException catch (error) {
-        emit(RouteSetupError(error.message));
-        emit(RouteSetupTeritoriesLoaded(currentState.territories));
-      }
     }
   }
 }

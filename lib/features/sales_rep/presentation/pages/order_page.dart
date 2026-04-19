@@ -215,9 +215,10 @@ class _OrderPageState extends State<OrderPage> {
             ),
           );
           Future<void>.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              Navigator.of(context).pop();
+            if (!context.mounted) {
+              return;
             }
+            Navigator.of(context).pop();
           });
           return;
         }

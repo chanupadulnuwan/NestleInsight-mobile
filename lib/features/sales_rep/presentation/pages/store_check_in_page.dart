@@ -70,9 +70,10 @@ class _StoreCheckInPageState extends State<StoreCheckInPage> {
             ),
           );
           Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) {
-              Navigator.of(context).pop();
+            if (!context.mounted) {
+              return;
             }
+            Navigator.of(context).pop();
           });
         } else if (state is StoreCheckInError) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -49,8 +49,12 @@ class ShopOrder {
     required this.status,
     required this.currencyCode,
     required this.totalAmount,
+    required this.subtotalBeforeDiscount,
+    required this.promotionDiscountTotal,
+    required this.totalAfterDiscount,
     required this.placedAt,
     required this.items,
+    this.appliedPromotionCode,
     this.customerNote,
     this.delayReason,
     this.delayedAt,
@@ -74,8 +78,15 @@ class ShopOrder {
       status: json['status'] as String? ?? '',
       currencyCode: json['currencyCode'] as String? ?? 'LKR',
       totalAmount: _readDouble(json['totalAmount']),
+      subtotalBeforeDiscount: _readOptionalDouble(json['subtotalBeforeDiscount']) ??
+          _readDouble(json['totalAmount']),
+      promotionDiscountTotal:
+          _readOptionalDouble(json['promotionDiscountTotal']) ?? 0,
+      totalAfterDiscount: _readOptionalDouble(json['totalAfterDiscount']) ??
+          _readDouble(json['totalAmount']),
       placedAt: DateTime.tryParse(json['placedAt'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
+      appliedPromotionCode: json['appliedPromotionCode'] as String?,
       customerNote: json['customerNote'] as String?,
       delayReason: json['delayReason'] as String?,
       delayedAt: DateTime.tryParse(
@@ -95,7 +106,11 @@ class ShopOrder {
   final String status;
   final String currencyCode;
   final double totalAmount;
+  final double subtotalBeforeDiscount;
+  final double promotionDiscountTotal;
+  final double totalAfterDiscount;
   final DateTime placedAt;
+  final String? appliedPromotionCode;
   final String? customerNote;
   final String? delayReason;
   final DateTime? delayedAt;
@@ -110,6 +125,18 @@ double _readDouble(dynamic value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double? _readOptionalDouble(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(value.toString());
 }
 
 int _readInt(dynamic value) {
