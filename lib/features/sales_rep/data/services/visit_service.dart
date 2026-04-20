@@ -112,10 +112,14 @@ class VisitService {
 
   Future<CompleteVisitResult> completeVisit({
     required String visitId,
-    dynamic shelfStock,
-    dynamic backroomStock,
-    dynamic osaIssues,
-    dynamic promotions,
+    List<Map<String, dynamic>>? stockItems,
+    List<Map<String, dynamic>>? expiryItems,
+    List<Map<String, dynamic>>? osaIssues,
+    String? competitorNotes,
+    List<Map<String, dynamic>>? promotionChecks,
+    List<Map<String, dynamic>>? planogramAnswers,
+    List<Map<String, dynamic>>? posmAnswers,
+    List<Map<String, dynamic>>? outletFeedbackAnswers,
     bool? planogramOk,
     bool? posmOk,
     String? feedback,
@@ -124,13 +128,18 @@ class VisitService {
       final response = await _dio.patch(
         '/store-visits/$visitId/complete',
         data: {
-          'shelfStockJson': shelfStock,
-          'backroomStockJson': backroomStock,
-          'osaIssuesJson': osaIssues,
-          'promotionsJson': promotions,
-          'planogramOk': planogramOk,
-          'posmOk': posmOk,
-          'outletFeedback': feedback,
+          if (stockItems != null) 'stockItems': stockItems,
+          if (expiryItems != null) 'expiryItems': expiryItems,
+          if (osaIssues != null) 'osaIssues': osaIssues,
+          if (competitorNotes != null) 'competitorNotes': competitorNotes,
+          if (promotionChecks != null) 'promotionChecks': promotionChecks,
+          if (planogramAnswers != null) 'planogramAnswers': planogramAnswers,
+          if (posmAnswers != null) 'posmAnswers': posmAnswers,
+          if (outletFeedbackAnswers != null)
+            'outletFeedbackAnswers': outletFeedbackAnswers,
+          if (planogramOk != null) 'planogramOk': planogramOk,
+          if (posmOk != null) 'posmOk': posmOk,
+          if (feedback != null) 'outletFeedback': feedback,
         },
       );
 
