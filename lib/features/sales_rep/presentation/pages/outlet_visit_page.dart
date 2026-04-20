@@ -74,6 +74,8 @@ class OutletVisitPage extends StatefulWidget {
     required this.territoryId,
     this.initialOutlet,
     this.beatPlanOutlets = const [],
+    this.smartRouteStopId,
+    this.smartRouteSessionId,
   });
 
   final String routeId;
@@ -82,6 +84,10 @@ class OutletVisitPage extends StatefulWidget {
 
   /// Pre-populated from today's beat plan for shop selector
   final List<TerritoryOutlet> beatPlanOutlets;
+
+  /// Smart route integration — stored for future use when smart route completes
+  final String? smartRouteStopId;
+  final String? smartRouteSessionId;
 
   @override
   State<OutletVisitPage> createState() => _OutletVisitPageState();
