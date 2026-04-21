@@ -17,6 +17,8 @@ class HomeLoaded extends HomeState {
   final int shopsLeft;
   final String? activeRouteId;
   final String? activeTerritoryId;
+  final String? reportableRouteId;
+  final String? reportableTerritoryId;
 
   HomeLoaded({
     required this.firstName,
@@ -31,6 +33,8 @@ class HomeLoaded extends HomeState {
     required this.shopsLeft,
     this.activeRouteId,
     this.activeTerritoryId,
+    this.reportableRouteId,
+    this.reportableTerritoryId,
   });
 }
 

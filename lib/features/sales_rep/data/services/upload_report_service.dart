@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/network_error_helper.dart';
 
 class DailyReportSummary {
   DailyReportSummary({
@@ -96,9 +97,10 @@ class UploadReportService {
       );
     } on DioException catch (e) {
       throw UploadReportServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error generating report',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unknown error generating report',
+        ),
       );
     } catch (e) {
       throw UploadReportServiceException(
@@ -121,14 +123,13 @@ class UploadReportService {
           .toList();
     } on DioException catch (e) {
       throw UploadReportServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error fetching reports',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unknown error fetching reports',
+        ),
       );
     } catch (e) {
-      throw UploadReportServiceException(
-        'Failed to process reports data: $e',
-      );
+      throw UploadReportServiceException('Failed to process reports data: $e');
     }
   }
 
@@ -140,9 +141,10 @@ class UploadReportService {
       );
     } on DioException catch (e) {
       throw UploadReportServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error fetching report',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unknown error fetching report',
+        ),
       );
     } catch (e) {
       throw UploadReportServiceException('Failed to process report data: $e');
@@ -163,9 +165,10 @@ class UploadReportService {
       );
     } on DioException catch (e) {
       throw UploadReportServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error updating report draft',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unknown error updating report draft',
+        ),
       );
     } catch (e) {
       throw UploadReportServiceException('Failed to update draft: $e');
@@ -180,9 +183,10 @@ class UploadReportService {
       );
     } on DioException catch (e) {
       throw UploadReportServiceException(
-        e.response?.data?['message'] ??
-            e.message ??
-            'Unknown error submitting report',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Unknown error submitting report',
+        ),
       );
     } catch (e) {
       throw UploadReportServiceException('Failed to submit report: $e');

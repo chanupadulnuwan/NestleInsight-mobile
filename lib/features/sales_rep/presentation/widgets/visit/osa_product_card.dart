@@ -73,7 +73,7 @@ class OSAProductCard extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: product.imageUrl != null
           ? Image.network(product.imageUrl!, fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(
+              errorBuilder: (_, _, _) => const Icon(
                 Icons.inventory_2_outlined,
                 color: AppTheme.textSoft,
               ))

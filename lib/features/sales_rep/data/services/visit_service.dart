@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:mobile/core/network/dio_client.dart';
+import 'package:mobile/core/network/network_error_helper.dart';
 
 class VisitServiceException implements Exception {
   const VisitServiceException(this.message, {this.code});
@@ -103,7 +104,7 @@ class VisitService {
       );
     } on DioException catch (e) {
       throw VisitServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Failed to start visit',
+        extractBackendErrorMessage(e, fallbackMessage: 'Failed to start visit'),
       );
     } catch (e) {
       throw VisitServiceException('An unexpected error occurred: $e');
@@ -128,18 +129,17 @@ class VisitService {
       final response = await _dio.patch(
         '/store-visits/$visitId/complete',
         data: {
-          if (stockItems != null) 'stockItems': stockItems,
-          if (expiryItems != null) 'expiryItems': expiryItems,
-          if (osaIssues != null) 'osaIssues': osaIssues,
-          if (competitorNotes != null) 'competitorNotes': competitorNotes,
-          if (promotionChecks != null) 'promotionChecks': promotionChecks,
-          if (planogramAnswers != null) 'planogramAnswers': planogramAnswers,
-          if (posmAnswers != null) 'posmAnswers': posmAnswers,
-          if (outletFeedbackAnswers != null)
-            'outletFeedbackAnswers': outletFeedbackAnswers,
-          if (planogramOk != null) 'planogramOk': planogramOk,
-          if (posmOk != null) 'posmOk': posmOk,
-          if (feedback != null) 'outletFeedback': feedback,
+          'stockItems': ?stockItems,
+          'expiryItems': ?expiryItems,
+          'osaIssues': ?osaIssues,
+          'competitorNotes': ?competitorNotes,
+          'promotionChecks': ?promotionChecks,
+          'planogramAnswers': ?planogramAnswers,
+          'posmAnswers': ?posmAnswers,
+          'outletFeedbackAnswers': ?outletFeedbackAnswers,
+          'planogramOk': ?planogramOk,
+          'posmOk': ?posmOk,
+          'outletFeedback': ?feedback,
         },
       );
 
@@ -156,7 +156,10 @@ class VisitService {
       );
     } on DioException catch (e) {
       throw VisitServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Failed to complete visit',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Failed to complete visit',
+        ),
       );
     } catch (e) {
       throw VisitServiceException('An unexpected error occurred: $e');
@@ -187,7 +190,10 @@ class VisitService {
       }
     } on DioException catch (e) {
       throw VisitServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Failed to upload photo',
+        extractBackendErrorMessage(
+          e,
+          fallbackMessage: 'Failed to upload photo',
+        ),
       );
     } catch (e) {
       throw VisitServiceException('An unexpected error occurred: $e');

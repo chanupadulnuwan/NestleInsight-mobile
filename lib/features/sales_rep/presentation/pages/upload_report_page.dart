@@ -16,6 +16,7 @@ class UploadReportPage extends StatefulWidget {
 
 class _UploadReportPageState extends State<UploadReportPage> {
   final TextEditingController _commentsController = TextEditingController();
+  final Set<String> _selectedReportIds = <String>{};
   String? _boundReportId;
 
   @override
@@ -45,6 +46,9 @@ class _UploadReportPageState extends State<UploadReportPage> {
             );
             context.read<UploadReportCubit>().clearNotifications();
           } else if (state.successMessage != null) {
+            if (state.successMessage!.contains('uploaded successfully')) {
+              setState(() => _selectedReportIds.clear());
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
@@ -172,16 +176,16 @@ class _UploadReportPageState extends State<UploadReportPage> {
           const SizedBox(height: 12),
           _SummaryCard(title: 'Route Summary', data: report.routeSummary),
           _SummaryCard(title: 'Visit Summary', data: report.visitSummary),
-          _SummaryCard(title: 'OSA & Feedback Summary', data: report.osaSummary),
+          _SummaryCard(
+            title: 'OSA & Feedback Summary',
+            data: report.osaSummary,
+          ),
           _SummaryCard(
             title: 'Orders / Delivery Summary',
             data: report.deliverySummary,
           ),
           _SummaryCard(title: 'Return Summary', data: report.returnSummary),
-          _SummaryCard(
-            title: 'Incident Summary',
-            data: report.incidentSummary,
-          ),
+          _SummaryCard(title: 'Incident Summary', data: report.incidentSummary),
           const SizedBox(height: 12),
           Card(
             shape: RoundedRectangleBorder(
@@ -320,10 +324,34 @@ class _UploadReportPageState extends State<UploadReportPage> {
       onRefresh: () => context.read<UploadReportCubit>().loadMyReports(),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: state.reports.length,
+        itemCount: state.reports.length + 1,
         itemBuilder: (context, index) {
-          final report = state.reports[index];
+          if (index == 0) {
+            final selectedDraftCount = state.reports
+                .where((report) => _selectedReportIds.contains(report.id))
+                .length;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _BulkUploadPanel(
+                selectedCount: selectedDraftCount,
+                isSubmitting: state.isSubmitting,
+                onUpload: selectedDraftCount == 0 || state.isSubmitting
+                    ? null
+                    : () {
+                        context.read<UploadReportCubit>().submitReports(
+                          _selectedReportIds,
+                        );
+                      },
+              ),
+            );
+          }
+
+          final reportIndex = index - 1;
+          final report = state.reports[reportIndex];
           final isSelected = state.selectedReport?.id == report.id;
+          final isChecked = _selectedReportIds.contains(report.id);
+          final canSelectForUpload = report.isDraft;
           final badgeColor = report.isSubmitted
               ? AppTheme.proceedOrderOlive
               : AppTheme.kOrange;
@@ -333,7 +361,9 @@ class _UploadReportPageState extends State<UploadReportPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(
-                color: isSelected ? AppTheme.primaryBrown : AppTheme.outlineWarm,
+                color: isSelected
+                    ? AppTheme.primaryBrown
+                    : AppTheme.outlineWarm,
               ),
             ),
             child: InkWell(
@@ -346,6 +376,21 @@ class _UploadReportPageState extends State<UploadReportPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
+                    Checkbox(
+                      value: isChecked,
+                      onChanged: canSelectForUpload
+                          ? (value) {
+                              setState(() {
+                                if (value == true) {
+                                  _selectedReportIds.add(report.id);
+                                } else {
+                                  _selectedReportIds.remove(report.id);
+                                }
+                              });
+                            }
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,10 +487,7 @@ class _InfoBanner extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   message,
-                  style: const TextStyle(
-                    color: AppTheme.textSoft,
-                    height: 1.4,
-                  ),
+                  style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
                 ),
               ],
             ),
@@ -488,6 +530,72 @@ class _InfoCard extends StatelessWidget {
                   style: const TextStyle(color: AppTheme.textSoft),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BulkUploadPanel extends StatelessWidget {
+  const _BulkUploadPanel({
+    required this.selectedCount,
+    required this.isSubmitting,
+    required this.onUpload,
+  });
+
+  final int selectedCount;
+  final bool isSubmitting;
+  final VoidCallback? onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppTheme.proceedOrderOlive.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.cloud_upload_outlined,
+                color: AppTheme.proceedOrderOlive,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedCount == 0
+                    ? 'Select draft reports to upload'
+                    : '$selectedCount draft report${selectedCount == 1 ? '' : 's'} selected',
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: onUpload,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.proceedOrderOlive,
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Upload'),
             ),
           ],
         ),
@@ -613,7 +721,8 @@ class _SummaryContent extends StatelessWidget {
     if (normalizedTitle.contains('osa')) {
       return _OsaSummaryBody(data: data);
     }
-    if (normalizedTitle.contains('order') || normalizedTitle.contains('delivery')) {
+    if (normalizedTitle.contains('order') ||
+        normalizedTitle.contains('delivery')) {
       return _DeliverySummaryBody(data: data);
     }
     if (normalizedTitle.contains('return')) {
@@ -651,7 +760,11 @@ class _RouteSummaryBody extends StatelessWidget {
           label: 'Field Time',
           value: '$fieldDurationMinutes min',
         ),
-      if (_readInt(data, const ['openingStockLines', 'openingStockLineCount']) != null)
+      if (_readInt(data, const [
+            'openingStockLines',
+            'openingStockLineCount',
+          ]) !=
+          null)
         _SummaryMetricData(
           label: 'Opening Lines',
           value:
@@ -662,7 +775,11 @@ class _RouteSummaryBody extends StatelessWidget {
           label: 'Opening Cases',
           value: '${_readInt(data, const ['openingStockCases'])}',
         ),
-      if (_readInt(data, const ['closingStockLines', 'closingStockLineCount']) != null)
+      if (_readInt(data, const [
+            'closingStockLines',
+            'closingStockLineCount',
+          ]) !=
+          null)
         _SummaryMetricData(
           label: 'Closing Lines',
           value:
@@ -728,8 +845,10 @@ class _VisitSummaryBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outlets = _readMapList(data['outlets'] ?? data['visitedShops']);
-    final totalDurationMinutes =
-        _readInt(data, const ['totalDurationMinutes', 'totalVisitDurationMinutes']);
+    final totalDurationMinutes = _readInt(data, const [
+      'totalDurationMinutes',
+      'totalVisitDurationMinutes',
+    ]);
 
     final metrics = <_SummaryMetricData>[
       if (_readInt(data, const ['totalVisits']) != null)
@@ -774,10 +893,9 @@ class _VisitSummaryBody extends StatelessWidget {
           _DetailGroup(
             title: 'Visited Outlets',
             rows: outlets.map((outlet) {
-              final durationSeconds = _readInt(
-                outlet,
-                const ['durationSeconds'],
-              );
+              final durationSeconds = _readInt(outlet, const [
+                'durationSeconds',
+              ]);
               final startedAt = _readDateTime(outlet, const ['startedAt']);
               final endedAt = _readDateTime(outlet, const ['endedAt']);
               final detailParts = <String>[
@@ -797,10 +915,10 @@ class _VisitSummaryBody extends StatelessWidget {
                 ),
                 badgeColor:
                     (_readString(outlet, const ['status']) ?? '')
-                                .toUpperCase() ==
-                            'COMPLETED'
-                        ? AppTheme.proceedOrderOlive
-                        : AppTheme.securitySlate,
+                            .toUpperCase() ==
+                        'COMPLETED'
+                    ? AppTheme.proceedOrderOlive
+                    : AppTheme.securitySlate,
               );
             }).toList(),
           ),
@@ -821,7 +939,8 @@ class _OsaSummaryBody extends StatelessWidget {
     final feedbackSamples = _readMapList(data['feedbackSamples']);
 
     final metrics = <_SummaryMetricData>[
-      if (_readInt(data, const ['planogramOkCount', 'visitsWithPlanogramOk']) != null)
+      if (_readInt(data, const ['planogramOkCount', 'visitsWithPlanogramOk']) !=
+          null)
         _SummaryMetricData(
           label: 'Planogram OK',
           value:
@@ -831,11 +950,14 @@ class _OsaSummaryBody extends StatelessWidget {
       if (_readInt(data, const ['posmOkCount', 'visitsWithPosmOk']) != null)
         _SummaryMetricData(
           label: 'POSM OK',
-          value:
-              '${_readInt(data, const ['posmOkCount', 'visitsWithPosmOk'])}',
+          value: '${_readInt(data, const ['posmOkCount', 'visitsWithPosmOk'])}',
           accentColor: AppTheme.proceedOrderOlive,
         ),
-      if (_readInt(data, const ['outletCountWithIssues', 'visitsWithOsaNotes']) != null)
+      if (_readInt(data, const [
+            'outletCountWithIssues',
+            'visitsWithOsaNotes',
+          ]) !=
+          null)
         _SummaryMetricData(
           label: 'Outlets With Issues',
           value:
@@ -960,15 +1082,13 @@ class _DeliverySummaryBody extends StatelessWidget {
               final placedAt = _readDateTime(order, const ['placedAt']);
               final totalAmount = _readDouble(order, const ['totalAmount']);
               final subtitleParts = <String>[
-                if (totalAmount != null)
-                  'Rs. ${_formatCurrency(totalAmount)}',
+                if (totalAmount != null) 'Rs. ${_formatCurrency(totalAmount)}',
                 if (placedAt != null) _formatDateTime(placedAt),
               ];
 
               return _DetailRowData(
                 title:
-                    _readString(order, const ['orderCode']) ??
-                    'Assisted order',
+                    _readString(order, const ['orderCode']) ?? 'Assisted order',
                 subtitle: subtitleParts.join('  |  '),
                 badge: _formatStatus(
                   _readString(order, const ['status']) ?? 'UNKNOWN',
@@ -1004,6 +1124,17 @@ class _ReturnSummaryBody extends StatelessWidget {
           value: '${_readInt(data, const ['totalReturnedCases'])}',
           accentColor: AppTheme.primaryBrown,
         ),
+      if (_readInt(data, const [
+            'totalReturnedUnits',
+            'totalReturnedProducts',
+          ]) !=
+          null)
+        _SummaryMetricData(
+          label: 'Returned Products',
+          value:
+              '${_readInt(data, const ['totalReturnedUnits', 'totalReturnedProducts'])}',
+          accentColor: AppTheme.primaryBrown,
+        ),
     ];
 
     return Column(
@@ -1016,17 +1147,27 @@ class _ReturnSummaryBody extends StatelessWidget {
             title: 'Returned Items',
             rows: items.map((item) {
               final notes = _readString(item, const ['notes']);
+              final quantityParts = <String>[
+                if ((_readInt(item, const ['quantityCases']) ?? 0) > 0)
+                  '${_readInt(item, const ['quantityCases'])} case(s)',
+                if ((_readInt(item, const ['quantityUnits']) ?? 0) > 0)
+                  '${_readInt(item, const ['quantityUnits'])} product(s)',
+              ];
               return _DetailRowData(
                 title:
-                    _readString(item, const ['productName', 'productNameSnapshot']) ??
+                    _readString(item, const [
+                      'productName',
+                      'productNameSnapshot',
+                    ]) ??
                     'Returned item',
                 subtitle: [
                   if (_readString(item, const ['reason']) != null)
                     _formatStatus(_readString(item, const ['reason'])!),
                   if (notes != null && notes.isNotEmpty) notes,
                 ].join('  |  '),
-                badge:
-                    '${_readInt(item, const ['quantityCases']) ?? 0} case(s)',
+                badge: quantityParts.isEmpty
+                    ? 'Returned'
+                    : quantityParts.join(' + '),
                 badgeColor: AppTheme.primaryBrown,
               );
             }).toList(),
@@ -1091,8 +1232,7 @@ class _IncidentSummaryBody extends StatelessWidget {
             rows: incidents.map((incident) {
               final createdAt = _readDateTime(incident, const ['createdAt']);
               return _DetailRowData(
-                title:
-                    _readString(incident, const ['type']) ?? 'Incident',
+                title: _readString(incident, const ['type']) ?? 'Incident',
                 subtitle: [
                   if (_readString(incident, const ['description']) != null)
                     _readString(incident, const ['description'])!,
@@ -1238,7 +1378,8 @@ class _DetailGroup extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      if (row.subtitle != null && row.subtitle!.trim().isNotEmpty) ...[
+                      if (row.subtitle != null &&
+                          row.subtitle!.trim().isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
                           row.subtitle!,
@@ -1259,7 +1400,8 @@ class _DetailGroup extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: (row.badgeColor ?? AppTheme.securitySlate).withValues(alpha: 0.12),
+                      color: (row.badgeColor ?? AppTheme.securitySlate)
+                          .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(

@@ -1,4 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/features/sales_rep/data/services/route_return_progress_store.dart';
+
 import '../../data/services/sales_return_service.dart';
 
 abstract class SalesReturnState {}
@@ -19,6 +21,8 @@ class SalesReturnError extends SalesReturnState {
 
 class SalesReturnCubit extends Cubit<SalesReturnState> {
   final SalesReturnService _service = SalesReturnService();
+  final RouteReturnProgressStore _returnProgressStore =
+      RouteReturnProgressStore();
 
   SalesReturnCubit() : super(SalesReturnInitial());
 
@@ -37,6 +41,7 @@ class SalesReturnCubit extends Cubit<SalesReturnState> {
       for (final item in items) {
         await _service.logReturn(routeId: routeId, item: item);
       }
+      await _returnProgressStore.addReturnItems(routeId: routeId, items: items);
       emit(SalesReturnSuccess('Returns logged successfully'));
     } on SalesReturnServiceException catch (e) {
       emit(SalesReturnError(e.message));

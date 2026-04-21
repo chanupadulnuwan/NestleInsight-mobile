@@ -10,7 +10,8 @@ class ActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orderCode = activity.metadata?['orderCode']?.toString();
-    final pin = activity.metadata?['pin']?.toString();
+    // Support both key names (backend standardised to 'pin'; older entries used 'routeStartPin')
+    final pin = (activity.metadata?['pin'] ?? activity.metadata?['routeStartPin'])?.toString();
     // Decision metadata for outlet approval
     final decision = activity.metadata?['decision']?.toString();
 

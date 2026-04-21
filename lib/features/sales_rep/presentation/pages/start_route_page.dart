@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/core/config/app_config.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/home/data/services/product_catalog_service.dart';
+import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/sales_rep/data/services/route_service.dart';
 import 'package:mobile/features/sales_rep/data/services/route_setup_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/route_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/route_setup_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/end_route_page.dart';
 
 class StartRoutePage extends StatelessWidget {
   const StartRoutePage({super.key});
@@ -27,7 +31,8 @@ class _StartRouteView extends StatefulWidget {
 }
 
 class _StartRouteViewState extends State<_StartRouteView> {
-  final TextEditingController _routeStartPinController = TextEditingController();
+  final TextEditingController _routeStartPinController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -131,6 +136,20 @@ class _StartRouteViewState extends State<_StartRouteView> {
               isLoading: isLoading,
               onOpen: () => _openLoadRequestSheet(context, route),
             ),
+            const SizedBox(height: 14),
+            _ResetRouteCard(
+              isLoading: isLoading,
+              onReset: () => _confirmCancelRoute(context, route),
+            ),
+            const SizedBox(height: 14),
+            _StartRouteRequestCard(
+              route: route,
+              pinController: _routeStartPinController,
+              isLoading: isLoading,
+              onOpenLoadRequest: () => _openLoadRequestSheet(context, route),
+              onRequestPin: () => _confirmRequestPinRefresh(context, route),
+              onStart: () => _startRouteWithPin(context, route),
+            ),
           ],
         );
       case 'APPROVED_TO_START':
@@ -138,20 +157,8 @@ class _StartRouteViewState extends State<_StartRouteView> {
           route: route,
           pinController: _routeStartPinController,
           isLoading: isLoading,
-          onStart: () async {
-            final pin = _routeStartPinController.text.trim();
-            if (pin.length != 6) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Enter the 6-digit route PIN.')),
-              );
-              return;
-            }
-
-            await context.read<RouteCubit>().enterPin(
-              routeId: route.id,
-              pin: pin,
-            );
-          },
+          onRequestPinRefresh: () => _confirmRequestPinRefresh(context, route),
+          onStart: () => _startRouteWithPin(context, route),
         );
       case 'IN_PROGRESS':
         return _InProgressCard(
@@ -190,19 +197,24 @@ class _StartRouteViewState extends State<_StartRouteView> {
     );
   }
 
-  Future<void> _openBeatPlanSheet(BuildContext context, SalesRoute route) async {
+  Future<void> _openBeatPlanSheet(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _BeatPlanSheet(
         route: route,
-        onSubmit: (selectedOutletIds) {
-          return context.read<RouteCubit>().updateBeatPlan(
-            routeId: route.id,
-            selectedOutletIds: selectedOutletIds,
-          );
-        },
+        onSubmit:
+            ({required selectedOutletIds, required selectedShopOwnerIds}) {
+              return context.read<RouteCubit>().updateBeatPlan(
+                routeId: route.id,
+                selectedOutletIds: selectedOutletIds,
+                selectedShopOwnerIds: selectedShopOwnerIds,
+              );
+            },
       ),
     );
   }
@@ -304,7 +316,10 @@ class _StartRouteViewState extends State<_StartRouteView> {
     }
   }
 
-  Future<void> _openLoadRequestSheet(BuildContext context, SalesRoute route) async {
+  Future<void> _openLoadRequestSheet(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -322,29 +337,107 @@ class _StartRouteViewState extends State<_StartRouteView> {
     );
   }
 
-  Future<void> _openCloseRouteSheet(BuildContext context, SalesRoute route) async {
-    await showModalBottomSheet<void>(
+  Future<void> _confirmCancelRoute(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CloseRouteSheet(
-        route: route,
-        onSubmit: ({
-          required pin,
-          required closingStock,
-          required returnItems,
-          varianceReason,
-        }) {
-          return context.read<RouteCubit>().closeRoute(
-            routeId: route.id,
-            pin: pin,
-            closingStock: closingStock,
-            returnItems: returnItems,
-            varianceReason: varianceReason,
-          );
-        },
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Route'),
+        content: const Text(
+          'This will cancel the current route and all its pending load requests. You can start a new route afterwards. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Route'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.promotionMutedRed,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancel Route'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed != true || !context.mounted) return;
+    await context.read<RouteCubit>().cancelRoute(routeId: route.id);
+  }
+
+  Future<void> _confirmRequestPinRefresh(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Request Start PIN'),
+        content: const Text(
+          'This will notify your warehouse manager to approve the pending load request and issue a route-start PIN. Any current PIN will be invalidated.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Request Start PIN'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    await context.read<RouteCubit>().requestPinRefresh(routeId: route.id);
+  }
+
+  Future<void> _startRouteWithPin(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
+    final pin = _routeStartPinController.text.trim();
+    if (pin.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the 6-digit route PIN.')),
+      );
+      return;
+    }
+
+    await context.read<RouteCubit>().enterPin(routeId: route.id, pin: pin);
+  }
+
+  Future<void> _openCloseRouteSheet(
+    BuildContext context,
+    SalesRoute route,
+  ) async {
+    final pendingVisits = route.beatPlanItems
+        .where((item) => item.isSelected)
+        .where((item) => item.visitStatus.toUpperCase() != 'COMPLETED')
+        .length;
+
+    if (pendingVisits > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Complete $pendingVisits remaining store visit(s) before closing the route.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => EndRoutePage(routeId: route.id)),
+    );
+
+    if (context.mounted) {
+      await context.read<RouteCubit>().loadRoute();
+    }
   }
 }
 
@@ -356,7 +449,9 @@ class _RouteHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = route == null ? 'Ready to plan' : _formatStatus(route!.status);
+    final statusLabel = route == null
+        ? 'Ready to plan'
+        : _formatStatus(route!.status);
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -387,10 +482,7 @@ class _RouteHeroCard extends StatelessWidget {
                   color: Colors.white.withAlpha(28),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  Icons.route_rounded,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.route_rounded, color: Colors.white),
               ),
               const Spacer(),
               if (isLoading)
@@ -406,7 +498,9 @@ class _RouteHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            route == null ? 'Start today with a clean route setup.' : 'Today\'s route is underway.',
+            route == null
+                ? 'Start today with a clean route setup.'
+                : 'Today\'s route is underway.',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w800,
@@ -415,8 +509,8 @@ class _RouteHeroCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             route == null
-                ? 'Choose a warehouse, lock an available vehicle, review your best plan, and move to approval with fewer steps.'
-                : 'Warehouse, vehicle, best plan, delivery approvals, and van load status are all tracked here before you head out.',
+                ? 'Choose a warehouse, lock an available vehicle, review your beat plan, and move to approval with fewer steps.'
+                : 'Warehouse, vehicle, beat plan, delivery approvals, and van load status are all tracked here before you head out.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.white.withAlpha(225),
             ),
@@ -426,10 +520,7 @@ class _RouteHeroCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _HeroChip(
-                icon: Icons.flag_rounded,
-                label: statusLabel,
-              ),
+              _HeroChip(icon: Icons.flag_rounded, label: statusLabel),
               _HeroChip(
                 icon: Icons.warehouse_rounded,
                 label: route?.warehouseName ?? 'No warehouse selected',
@@ -500,7 +591,7 @@ class _NoRouteCard extends StatelessWidget {
             children: const [
               _InfoPill(label: 'Territory-safe warehouse list'),
               _InfoPill(label: 'Vehicle locking'),
-              _InfoPill(label: 'Best plan + delivery alerts'),
+              _InfoPill(label: 'Beat plan + delivery alerts'),
             ],
           ),
           const SizedBox(height: 18),
@@ -527,7 +618,8 @@ class _SelectionSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SectionCard(
       title: 'Selected Setup',
-      subtitle: 'Your warehouse and vehicle stay linked to this route until it is closed.',
+      subtitle:
+          'Your warehouse and vehicle stay linked to this route until it is closed.',
       accentColor: AppTheme.primaryBrownDark,
       child: Column(
         children: [
@@ -567,13 +659,19 @@ class _BeatPlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedItems = route.beatPlanItems.where((item) => item.isSelected).toList();
+    final selectedItems = route.beatPlanItems
+        .where((item) => item.isSelected)
+        .toList();
     final dueCount = selectedItems.where((item) => item.source == 'DUE').length;
-    final deliveryCount = selectedItems.where((item) => item.hasPendingDelivery).length;
-    final manualCount = selectedItems.where((item) => item.source == 'MANUAL').length;
+    final deliveryCount = selectedItems
+        .where((item) => item.hasPendingDelivery)
+        .length;
+    final manualCount = selectedItems
+        .where((item) => item.source == 'MANUAL')
+        .length;
 
     return _SectionCard(
-      title: 'Today\'s Best Plan',
+      title: 'Today\'s Beat Plan',
       subtitle:
           'The plan blends due outlets, delivery-driven outlets, and manual additions. Saved selections auto-fill again every 4 weeks for the same warehouse.',
       accentColor: AppTheme.proceedOrderOlive,
@@ -611,9 +709,9 @@ class _BeatPlanCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '+${selectedItems.length - 4} more outlet(s) selected',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSoft,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
               ),
             ),
           const SizedBox(height: 16),
@@ -622,7 +720,7 @@ class _BeatPlanCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: isLoading ? null : onEdit,
               icon: const Icon(Icons.checklist_rtl_rounded),
-              label: const Text('Review Best Plan'),
+              label: const Text('Review Beat Plan'),
             ),
           ),
         ],
@@ -659,12 +757,15 @@ class _DeliveryAlertsCard extends StatelessWidget {
               .length;
     final approval = route.deliveryApproval;
     final approvalVerified = approval?.pinVerifiedAt != null;
-    final approvalStatus = approval == null ? null : _formatStatus(approval.status);
+    final approvalStatus = approval == null
+        ? null
+        : _formatStatus(approval.status);
 
     String message;
     Color accentColor;
     if (route.deliveryAlerts.isEmpty) {
-      message = 'No ready-for-delivery orders are waiting in your territory right now.';
+      message =
+          'No ready-for-delivery orders are waiting in your territory right now.';
       accentColor = AppTheme.proceedOrderOlive;
     } else if (approvalVerified) {
       message =
@@ -699,7 +800,10 @@ class _DeliveryAlertsCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _StatBadge(label: 'Alerted outlets', value: '${route.deliveryAlerts.length}'),
+              _StatBadge(
+                label: 'Alerted outlets',
+                value: '${route.deliveryAlerts.length}',
+              ),
               _StatBadge(label: 'Ready orders', value: '$totalOrders'),
               _StatBadge(label: 'Included', value: '$includedOutlets'),
               if (approvalStatus != null)
@@ -715,7 +819,9 @@ class _DeliveryAlertsCard extends StatelessWidget {
           else
             Column(
               children: route.deliveryAlerts.take(3).map((alert) {
-                final isIncluded = alert.orderIds.any(route.deliveryOrderIds.contains);
+                final isIncluded = alert.orderIds.any(
+                  route.deliveryOrderIds.contains,
+                );
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _DeliveryAlertTile(
@@ -730,9 +836,9 @@ class _DeliveryAlertsCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '+${route.deliveryAlerts.length - 3} more delivery alert(s)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSoft,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
               ),
             ),
           const SizedBox(height: 16),
@@ -764,9 +870,9 @@ class _DeliveryAlertsCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Approval PIN expires: ${_formatDateTime(approval?.pinExpiresAt)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSoft,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
             ),
           ],
         ],
@@ -789,9 +895,11 @@ class _LoadRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reservedDeliveryStock = _buildReservedDeliveryStock(route);
-    final freeSaleStock = route.vanLoadRequest?.freeSaleStock ?? const <StockLine>[];
+    final freeSaleStock =
+        route.vanLoadRequest?.freeSaleStock ?? const <StockLine>[];
     final deliveryApprovalSatisfied =
-        route.deliveryOrderIds.isEmpty || route.deliveryApproval?.pinVerifiedAt != null;
+        route.deliveryOrderIds.isEmpty ||
+        route.deliveryApproval?.pinVerifiedAt != null;
     final loadStatus = route.vanLoadRequest == null
         ? 'Not submitted'
         : _formatStatus(route.vanLoadRequest!.status);
@@ -829,20 +937,22 @@ class _LoadRequestCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            ...reservedDeliveryStock.take(4).map(
-              (line) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _StockLineTile(line: line),
-              ),
-            ),
+            ...reservedDeliveryStock
+                .take(4)
+                .map(
+                  (line) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _StockLineTile(line: line),
+                  ),
+                ),
             if (reservedDeliveryStock.length > 4)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '+${reservedDeliveryStock.length - 4} more reserved line(s)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
                 ),
               ),
             const SizedBox(height: 14),
@@ -872,7 +982,9 @@ class _LoadRequestCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: isLoading || !deliveryApprovalSatisfied ? null : onOpen,
+              onPressed: isLoading || !deliveryApprovalSatisfied
+                  ? null
+                  : onOpen,
               icon: const Icon(Icons.inventory_2_rounded),
               label: Text(
                 route.vanLoadRequest == null ||
@@ -888,17 +1000,140 @@ class _LoadRequestCard extends StatelessWidget {
   }
 }
 
-class _ApprovedToStartCard extends StatelessWidget {
-  const _ApprovedToStartCard({
+class _StartRouteRequestCard extends StatefulWidget {
+  const _StartRouteRequestCard({
     required this.route,
     required this.pinController,
     required this.isLoading,
+    required this.onOpenLoadRequest,
+    required this.onRequestPin,
     required this.onStart,
   });
 
   final SalesRoute route;
   final TextEditingController pinController;
   final bool isLoading;
+  final VoidCallback onOpenLoadRequest;
+  final VoidCallback onRequestPin;
+  final Future<void> Function() onStart;
+
+  @override
+  State<_StartRouteRequestCard> createState() => _StartRouteRequestCardState();
+}
+
+class _StartRouteRequestCardState extends State<_StartRouteRequestCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final loadRequest = widget.route.vanLoadRequest;
+    final loadStatus = loadRequest?.status;
+    final canRequestPin = loadStatus == 'PENDING';
+    final needsLoadRequest = loadRequest == null || loadStatus == 'REJECTED';
+    final rejectionReason = loadStatus == 'REJECTED'
+        ? loadRequest?.managerNotes?.trim()
+        : null;
+
+    return _SectionCard(
+      title: 'Start Route',
+      subtitle: _startRouteRequestSubtitle(loadStatus),
+      accentColor: AppTheme.proceedOrderOlive,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!_isExpanded)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: widget.isLoading
+                    ? null
+                    : () => setState(() => _isExpanded = true),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Start Route'),
+              ),
+            )
+          else ...[
+            if (rejectionReason != null && rejectionReason.isNotEmpty) ...[
+              _EmptyMessage(
+                icon: Icons.info_outline_rounded,
+                message:
+                    'TM rejected the load request. Reason: $rejectionReason',
+              ),
+              const SizedBox(height: 14),
+            ],
+            TextField(
+              controller: widget.pinController,
+              enabled: !widget.isLoading,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Route Start PIN',
+                hintText: 'Enter the 6-digit TM PIN',
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'TM approval generates the start PIN in the Activity Center. After approval, refresh this page and enter the PIN on the approved start screen.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: widget.isLoading ? null : widget.onStart,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Start Route'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: widget.isLoading
+                    ? null
+                    : needsLoadRequest
+                    ? widget.onOpenLoadRequest
+                    : canRequestPin
+                    ? widget.onRequestPin
+                    : null,
+                icon: Icon(
+                  needsLoadRequest
+                      ? Icons.inventory_2_rounded
+                      : Icons.notifications_active_outlined,
+                ),
+                label: Text(
+                  needsLoadRequest
+                      ? loadStatus == 'REJECTED'
+                            ? 'Re-request Load Approval'
+                            : 'Create Load Request'
+                      : 'Request Start PIN Again',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ApprovedToStartCard extends StatelessWidget {
+  const _ApprovedToStartCard({
+    required this.route,
+    required this.pinController,
+    required this.isLoading,
+    required this.onRequestPinRefresh,
+    required this.onStart,
+  });
+
+  final SalesRoute route;
+  final TextEditingController pinController;
+  final bool isLoading;
+  final VoidCallback onRequestPinRefresh;
   final Future<void> Function() onStart;
 
   @override
@@ -919,7 +1154,10 @@ class _ApprovedToStartCard extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _StatBadge(label: 'Status', value: _formatStatus(route.status)),
+                  _StatBadge(
+                    label: 'Status',
+                    value: _formatStatus(route.status),
+                  ),
                   if (route.routeStartPinExpiresAt != null)
                     _StatBadge(
                       label: 'PIN expires',
@@ -942,9 +1180,9 @@ class _ApprovedToStartCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'This PIN is time-bound. If it expires, TM needs to review the load again so a new start PIN can be issued.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSoft,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -953,6 +1191,15 @@ class _ApprovedToStartCard extends StatelessWidget {
                   onPressed: isLoading ? null : onStart,
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Start Route'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isLoading ? null : onRequestPinRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Request New PIN'),
                 ),
               ),
             ],
@@ -975,12 +1222,14 @@ class _ApprovedToStartCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...loadRequest.deliveryStock.take(4).map(
-                    (line) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _StockLineTile(line: line),
-                    ),
-                  ),
+                  ...loadRequest.deliveryStock
+                      .take(4)
+                      .map(
+                        (line) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _StockLineTile(line: line),
+                        ),
+                      ),
                 ],
                 if (loadRequest.freeSaleStock.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -991,12 +1240,14 @@ class _ApprovedToStartCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...loadRequest.freeSaleStock.take(4).map(
-                    (line) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _StockLineTile(line: line),
-                    ),
-                  ),
+                  ...loadRequest.freeSaleStock
+                      .take(4)
+                      .map(
+                        (line) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _StockLineTile(line: line),
+                        ),
+                      ),
                 ],
               ],
             ),
@@ -1075,12 +1326,14 @@ class _InProgressCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...route.vanLoadRequest!.deliveryStock.take(4).map(
-                    (line) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _StockLineTile(line: line),
-                    ),
-                  ),
+                  ...route.vanLoadRequest!.deliveryStock
+                      .take(4)
+                      .map(
+                        (line) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _StockLineTile(line: line),
+                        ),
+                      ),
                 ],
                 if (route.vanLoadRequest!.freeSaleStock.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -1091,18 +1344,49 @@ class _InProgressCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...route.vanLoadRequest!.freeSaleStock.take(4).map(
-                    (line) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _StockLineTile(line: line),
-                    ),
-                  ),
+                  ...route.vanLoadRequest!.freeSaleStock
+                      .take(4)
+                      .map(
+                        (line) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _StockLineTile(line: line),
+                        ),
+                      ),
                 ],
               ],
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ResetRouteCard extends StatelessWidget {
+  const _ResetRouteCard({required this.isLoading, required this.onReset});
+
+  final bool isLoading;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: 'Start Over',
+      subtitle:
+          'Cancel this route and all pending requests if you need to begin fresh with a different warehouse or vehicle.',
+      accentColor: AppTheme.promotionMutedRed,
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: isLoading ? null : onReset,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.promotionMutedRed,
+            side: const BorderSide(color: AppTheme.promotionMutedRed),
+          ),
+          icon: const Icon(Icons.delete_sweep_rounded),
+          label: const Text('Cancel & Reset Route'),
+        ),
+      ),
     );
   }
 }
@@ -1150,7 +1434,8 @@ class _CreateRouteSheet extends StatefulWidget {
   final Future<bool> Function({
     required String warehouseId,
     required String vehicleId,
-  }) onSubmit;
+  })
+  onSubmit;
 
   @override
   State<_CreateRouteSheet> createState() => _CreateRouteSheetState();
@@ -1185,7 +1470,8 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => context.read<RouteSetupCubit>().loadSetupOptions(),
+                    onPressed: () =>
+                        context.read<RouteSetupCubit>().loadSetupOptions(),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Try Again'),
                   ),
@@ -1198,8 +1484,11 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
           final options = loadedState.options;
           final warehouses = options.warehouses;
           final selectedWarehouse = _findWarehouse(warehouses, _warehouseId);
-          final vehicles = selectedWarehouse?.vehicles ?? const <RouteSetupVehicle>[];
-          final availableVehicles = vehicles.where((vehicle) => vehicle.isAvailable).toList();
+          final vehicles =
+              selectedWarehouse?.vehicles ?? const <RouteSetupVehicle>[];
+          final availableVehicles = vehicles
+              .where((vehicle) => vehicle.isAvailable)
+              .toList();
           final unavailableVehicles = vehicles
               .where((vehicle) => !vehicle.isAvailable)
               .toList();
@@ -1214,7 +1503,9 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
               }
             });
           } else if (_vehicleId != null &&
-              !vehicles.any((vehicle) => vehicle.id == _vehicleId && vehicle.isAvailable)) {
+              !vehicles.any(
+                (vehicle) => vehicle.id == _vehicleId && vehicle.isAvailable,
+              )) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -1348,7 +1639,9 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
                       ? null
                       : () => _submit(context),
                   icon: const Icon(Icons.playlist_add_circle_rounded),
-                  label: Text(_isSubmitting ? 'Creating...' : 'Save Draft Route'),
+                  label: Text(
+                    _isSubmitting ? 'Creating...' : 'Save Draft Route',
+                  ),
                 ),
               ),
             ],
@@ -1367,7 +1660,9 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
     }
     if (_vehicleId == null || _vehicleId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select an available vehicle to continue.')),
+        const SnackBar(
+          content: Text('Select an available vehicle to continue.'),
+        ),
       );
       return;
     }
@@ -1396,13 +1691,14 @@ class _CreateRouteSheetState extends State<_CreateRouteSheet> {
 }
 
 class _BeatPlanSheet extends StatefulWidget {
-  const _BeatPlanSheet({
-    required this.route,
-    required this.onSubmit,
-  });
+  const _BeatPlanSheet({required this.route, required this.onSubmit});
 
   final SalesRoute route;
-  final Future<bool> Function(List<String> selectedOutletIds) onSubmit;
+  final Future<bool> Function({
+    required List<String> selectedOutletIds,
+    required List<String> selectedShopOwnerIds,
+  })
+  onSubmit;
 
   @override
   State<_BeatPlanSheet> createState() => _BeatPlanSheetState();
@@ -1410,6 +1706,7 @@ class _BeatPlanSheet extends StatefulWidget {
 
 class _BeatPlanSheetState extends State<_BeatPlanSheet> {
   late final Set<String> _selectedOutletIds;
+  late final Set<String> _selectedShopOwnerIds;
   bool _isSubmitting = false;
 
   @override
@@ -1419,6 +1716,7 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
         .where((item) => item.isSelected)
         .map((item) => item.outletId)
         .toSet();
+    _selectedShopOwnerIds = <String>{};
   }
 
   @override
@@ -1426,7 +1724,7 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
     final options = _buildBeatPlanOptions(widget.route);
 
     return _BottomSheetShell(
-      title: 'Review Best Plan',
+      title: 'Review Beat Plan',
       subtitle:
           'Tick the outlets you want to cover today. The saved template is reused again every 4 weeks for the same warehouse, and you can still add more shops at any time.',
       child: Column(
@@ -1436,19 +1734,19 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _StatBadge(label: 'Available outlets', value: '${options.length}'),
-              _StatBadge(label: 'Selected today', value: '${_selectedOutletIds.length}'),
+              _StatBadge(label: 'Available shops', value: '${options.length}'),
+              _StatBadge(label: 'Selected today', value: '$_selectedCount'),
             ],
           ),
           const SizedBox(height: 16),
           if (options.isEmpty)
             const _EmptyMessage(
               icon: Icons.store_mall_directory_outlined,
-              message: 'No eligible outlets are available for this warehouse right now.',
+              message: 'No shops assigned to this warehouse yet.',
             )
           else
             ...options.map((option) {
-              final isSelected = _selectedOutletIds.contains(option.outletId);
+              final isSelected = _isOptionSelected(option);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _BeatPlanOptionTile(
@@ -1456,15 +1754,7 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
                   isSelected: isSelected,
                   onChanged: _isSubmitting
                       ? null
-                      : (checked) {
-                          setState(() {
-                            if (checked) {
-                              _selectedOutletIds.add(option.outletId);
-                            } else {
-                              _selectedOutletIds.remove(option.outletId);
-                            }
-                          });
-                        },
+                      : (checked) => _setOptionSelected(option, checked),
                 ),
               );
             }),
@@ -1474,7 +1764,7 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
             child: FilledButton.icon(
               onPressed: _isSubmitting ? null : () => _submit(context),
               icon: const Icon(Icons.save_outlined),
-              label: Text(_isSubmitting ? 'Saving...' : 'Save Best Plan'),
+              label: Text(_isSubmitting ? 'Saving...' : 'Save Beat Plan'),
             ),
           ),
         ],
@@ -1487,7 +1777,10 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
       _isSubmitting = true;
     });
 
-    final saved = await widget.onSubmit(_selectedOutletIds.toList()..sort());
+    final saved = await widget.onSubmit(
+      selectedOutletIds: _selectedOutletIds.toList()..sort(),
+      selectedShopOwnerIds: _selectedShopOwnerIds.toList()..sort(),
+    );
 
     if (!context.mounted) {
       return;
@@ -1501,13 +1794,50 @@ class _BeatPlanSheetState extends State<_BeatPlanSheet> {
       Navigator.of(context).pop();
     }
   }
+
+  bool _isOptionSelected(_BeatPlanOption option) {
+    final outletId = option.outletId;
+    if (outletId != null && outletId.isNotEmpty) {
+      return _selectedOutletIds.contains(outletId);
+    }
+
+    final shopOwnerUserId = option.shopOwnerUserId;
+    return shopOwnerUserId != null &&
+        shopOwnerUserId.isNotEmpty &&
+        _selectedShopOwnerIds.contains(shopOwnerUserId);
+  }
+
+  int get _selectedCount =>
+      _selectedOutletIds.length + _selectedShopOwnerIds.length;
+
+  void _setOptionSelected(_BeatPlanOption option, bool checked) {
+    setState(() {
+      final outletId = option.outletId;
+      if (outletId != null && outletId.isNotEmpty) {
+        if (checked) {
+          _selectedOutletIds.add(outletId);
+        } else {
+          _selectedOutletIds.remove(outletId);
+        }
+        return;
+      }
+
+      final shopOwnerUserId = option.shopOwnerUserId;
+      if (shopOwnerUserId == null || shopOwnerUserId.isEmpty) {
+        return;
+      }
+
+      if (checked) {
+        _selectedShopOwnerIds.add(shopOwnerUserId);
+      } else {
+        _selectedShopOwnerIds.remove(shopOwnerUserId);
+      }
+    });
+  }
 }
 
 class _DeliveryApprovalSheet extends StatefulWidget {
-  const _DeliveryApprovalSheet({
-    required this.route,
-    required this.onSubmit,
-  });
+  const _DeliveryApprovalSheet({required this.route, required this.onSubmit});
 
   final SalesRoute route;
   final Future<bool> Function(List<String> orderIds) onSubmit;
@@ -1544,7 +1874,8 @@ class _DeliveryApprovalSheetState extends State<_DeliveryApprovalSheet> {
             )
           else ...[
             ...alerts.map((alert) {
-              final isSelected = alert.orderIds.every(_selectedOrderIds.contains) &&
+              final isSelected =
+                  alert.orderIds.every(_selectedOrderIds.contains) &&
                   alert.orderIds.isNotEmpty;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -1570,9 +1901,9 @@ class _DeliveryApprovalSheetState extends State<_DeliveryApprovalSheet> {
               _selectedOrderIds.isEmpty
                   ? 'You can skip delivery inclusion and continue with a free-sale-only load request.'
                   : '${_selectedOrderIds.length} order(s) selected for approval.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSoft,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -1584,8 +1915,8 @@ class _DeliveryApprovalSheetState extends State<_DeliveryApprovalSheet> {
                   _isSubmitting
                       ? 'Sending...'
                       : _selectedOrderIds.isEmpty
-                          ? 'Save Without Deliveries'
-                          : 'Request TM Approval',
+                      ? 'Save Without Deliveries'
+                      : 'Request TM Approval',
                 ),
               ),
             ),
@@ -1630,15 +1961,13 @@ class _DeliveryApprovalSheetState extends State<_DeliveryApprovalSheet> {
 }
 
 class _LoadRequestSheet extends StatefulWidget {
-  const _LoadRequestSheet({
-    required this.route,
-    required this.onSubmit,
-  });
+  const _LoadRequestSheet({required this.route, required this.onSubmit});
 
   final Future<bool> Function(
     List<StockLine> deliveryStock,
     List<StockLine> freeSaleStock,
-  ) onSubmit;
+  )
+  onSubmit;
   final SalesRoute route;
 
   @override
@@ -1646,367 +1975,419 @@ class _LoadRequestSheet extends StatefulWidget {
 }
 
 class _LoadRequestSheetState extends State<_LoadRequestSheet> {
-  late final List<_StockLineFormData> _freeSaleLines;
+  final ProductCatalogService _catalogService = ProductCatalogService();
+  List<ShopCatalogProduct> _allProducts = const [];
+  List<ShopCatalogProduct> _filtered = const [];
+  final Map<String, int> _cases = {}; // productId -> cases
+  String _search = '';
+  bool _loadingCatalog = true;
+  String? _catalogError;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    final existingFreeSaleStock =
+    // Pre-fill from existing free-sale stock if re-opening sheet
+    final existing =
         widget.route.vanLoadRequest?.freeSaleStock ?? const <StockLine>[];
-    _freeSaleLines = existingFreeSaleStock.isEmpty
-        ? [_StockLineFormData()]
-        : existingFreeSaleStock
-              .map(
-                (line) => _StockLineFormData(
-                  initialProductId: line.productId,
-                  initialProductName: line.productName,
-                  initialQuantityCases: line.quantityCases,
-                ),
-              )
-              .toList();
-  }
-
-  @override
-  void dispose() {
-    for (final line in _freeSaleLines) {
-      line.dispose();
+    for (final line in existing) {
+      if (line.quantityCases > 0) {
+        _cases[line.productId] = line.quantityCases;
+      }
     }
-    super.dispose();
+    _loadCatalog();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final reservedDeliveryStock = _buildReservedDeliveryStock(widget.route);
+  Future<void> _loadCatalog() async {
+    try {
+      final result = await _catalogService.fetchCatalog();
+      if (!mounted) return;
+      setState(() {
+        _allProducts = result.products.where((p) => p.isAvailable).toList();
+        _filtered = _allProducts;
+        _loadingCatalog = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _catalogError = e.toString();
+        _loadingCatalog = false;
+      });
+    }
+  }
 
-    return _BottomSheetShell(
-      title: 'Create Van Load Request',
-      subtitle:
-          'Delivery stock is reserved from approved delivery orders. Add extra free-sale stock if needed, then send the request for TM approval.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Reserved delivery stock',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (reservedDeliveryStock.isEmpty)
-            const _EmptyMessage(
-              icon: Icons.local_shipping_outlined,
-              message:
-                  'No delivery stock is reserved for this route yet. You can still request free-sale stock.',
-            )
-          else
-            ...reservedDeliveryStock.map(
-              (line) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _StockLineTile(line: line),
-              ),
-            ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Free-sale stock',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () {
-                        setState(() {
-                          _freeSaleLines.add(_StockLineFormData());
-                        });
-                      },
-                icon: const Icon(Icons.add_circle_outline_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ..._freeSaleLines.asMap().entries.map((entry) {
-            final index = entry.key;
-            final formData = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _StockLineEditor(
-                data: formData,
-                onRemove: _freeSaleLines.length == 1
-                    ? null
-                    : () {
-                        setState(() {
-                          final removed = _freeSaleLines.removeAt(index);
-                          removed.dispose();
-                        });
-                      },
-              ),
-            );
-          }),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _isSubmitting ? null : () => _submit(context),
-              icon: const Icon(Icons.send_rounded),
-              label: Text(_isSubmitting ? 'Submitting...' : 'Submit Load Request'),
-            ),
-          ),
-        ],
-      ),
-    );
+  void _onSearch(String query) {
+    setState(() {
+      _search = query;
+      final q = query.trim().toLowerCase();
+      _filtered = q.isEmpty
+          ? _allProducts
+          : _allProducts.where((p) {
+              return p.name.toLowerCase().contains(q) ||
+                  p.sku.toLowerCase().contains(q) ||
+                  (p.brand?.toLowerCase().contains(q) ?? false);
+            }).toList();
+    });
+  }
+
+  void _increment(String productId) {
+    setState(() {
+      _cases[productId] = (_cases[productId] ?? 0) + 1;
+    });
+  }
+
+  void _decrement(String productId) {
+    setState(() {
+      final current = _cases[productId] ?? 0;
+      if (current <= 1) {
+        _cases.remove(productId);
+      } else {
+        _cases[productId] = current - 1;
+      }
+    });
   }
 
   Future<void> _submit(BuildContext context) async {
-    final freeSaleStock = _freeSaleLines
-        .map((line) => line.build())
-        .whereType<StockLine>()
-        .toList();
     final reservedDeliveryStock = _buildReservedDeliveryStock(widget.route);
+    final productIndex = {for (final p in _allProducts) p.id: p};
+    final freeSaleStock = _cases.entries
+        .where((e) => e.value > 0 && productIndex.containsKey(e.key))
+        .map(
+          (e) => StockLine(
+            productId: e.key,
+            productName: productIndex[e.key]!.name,
+            quantityCases: e.value,
+          ),
+        )
+        .toList();
 
     if (reservedDeliveryStock.isEmpty && freeSaleStock.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Add at least one stock line before submitting the request.'),
+          content: Text('Select at least one product before submitting.'),
         ),
       );
       return;
     }
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    setState(() => _isSubmitting = true);
 
     final submitted = await widget.onSubmit(
       reservedDeliveryStock,
       freeSaleStock,
     );
 
-    if (!context.mounted) {
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = false;
-    });
-
-    if (submitted) {
-      Navigator.of(context).pop();
-    }
-  }
-}
-
-class _CloseRouteSheet extends StatefulWidget {
-  const _CloseRouteSheet({
-    required this.route,
-    required this.onSubmit,
-  });
-
-  final SalesRoute route;
-  final Future<bool> Function({
-    required String pin,
-    required List<CloseStockLineInput> closingStock,
-    required List<ReturnItemInput> returnItems,
-    String? varianceReason,
-  }) onSubmit;
-
-  @override
-  State<_CloseRouteSheet> createState() => _CloseRouteSheetState();
-}
-
-class _CloseRouteSheetState extends State<_CloseRouteSheet> {
-  final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _varianceReasonController = TextEditingController();
-  final List<_ClosingStockFormData> _closingStockLines = [_ClosingStockFormData()];
-  final List<_ReturnItemFormData> _returnItemLines = [_ReturnItemFormData()];
-  bool _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    _varianceReasonController.dispose();
-    for (final line in _closingStockLines) {
-      line.dispose();
-    }
-    for (final line in _returnItemLines) {
-      line.dispose();
-    }
-    super.dispose();
+    if (!context.mounted) return;
+    setState(() => _isSubmitting = false);
+    if (submitted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final reservedDeliveryStock = _buildReservedDeliveryStock(widget.route);
+    final selectedCount = _cases.values.fold(0, (a, b) => a + b);
+
     return _BottomSheetShell(
-      title: 'Close Route',
+      title: 'Request Van Stock',
       subtitle:
-          'Enter the route-end PIN, record your closing stock, log return items, and capture any variance notes before closing the route.',
+          'Search products, set case quantities, then submit for TM approval.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _pinController,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: 'Route End PIN',
-              hintText: 'Enter 6 digits',
-              counterText: '',
+          // Reserved delivery stock (read-only)
+          if (reservedDeliveryStock.isNotEmpty) ...[
+            Text(
+              'Reserved delivery stock',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Closing stock',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+            const SizedBox(height: 10),
+            ...reservedDeliveryStock.map(
+              (line) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _StockLineTile(line: line),
               ),
-              IconButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () {
-                        setState(() {
-                          _closingStockLines.add(_ClosingStockFormData());
-                        });
-                      },
-                icon: const Icon(Icons.add_circle_outline_rounded),
-              ),
-            ],
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // Free-sale product picker
+          Text(
+            'Free-sale stock',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
-          ..._closingStockLines.asMap().entries.map((entry) {
-            final index = entry.key;
-            final data = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ClosingStockEditor(
-                data: data,
-                onRemove: _closingStockLines.length == 1
-                    ? null
-                    : () {
-                        setState(() {
-                          final removed = _closingStockLines.removeAt(index);
-                          removed.dispose();
-                        });
-                      },
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Return items',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () {
-                        setState(() {
-                          _returnItemLines.add(_ReturnItemFormData());
-                        });
-                      },
-                icon: const Icon(Icons.add_circle_outline_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ..._returnItemLines.asMap().entries.map((entry) {
-            final index = entry.key;
-            final data = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ReturnItemEditor(
-                data: data,
-                onRemove: _returnItemLines.length == 1
-                    ? null
-                    : () {
-                        setState(() {
-                          final removed = _returnItemLines.removeAt(index);
-                          removed.dispose();
-                        });
-                      },
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
+
+          // Search bar
           TextField(
-            controller: _varianceReasonController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Variance reason',
-              hintText: 'Add a note if counts do not match expectations',
+            onChanged: _onSearch,
+            decoration: InputDecoration(
+              hintText: 'Search by name or SKU...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _search.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear_rounded),
+                      onPressed: () {
+                        _onSearch('');
+                      },
+                    )
+                  : null,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+
+          if (_loadingCatalog)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_catalogError != null)
+            _ErrorPanel(message: 'Could not load products. $_catalogError')
+          else if (_filtered.isEmpty)
+            const _EmptyMessage(
+              icon: Icons.inventory_2_outlined,
+              message: 'No products match your search.',
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filtered.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final product = _filtered[index];
+                final qty = _cases[product.id] ?? 0;
+                return _ProductPickerCard(
+                  product: product,
+                  qty: qty,
+                  onIncrement: _isSubmitting
+                      ? null
+                      : () => _increment(product.id),
+                  onDecrement: _isSubmitting || qty == 0
+                      ? null
+                      : () => _decrement(product.id),
+                );
+              },
+            ),
+
+          const SizedBox(height: 20),
+
+          // Summary chip
+          if (selectedCount > 0) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBrown.withAlpha(16),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                '${_cases.length} product(s) · $selectedCount case(s) total',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.primaryBrownDark,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _isSubmitting ? null : () => _submit(context),
-              icon: const Icon(Icons.done_all_rounded),
-              label: Text(_isSubmitting ? 'Closing...' : 'Submit Route Close'),
+              icon: const Icon(Icons.send_rounded),
+              label: Text(
+                _isSubmitting ? 'Submitting...' : 'Submit Load Request',
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Future<void> _submit(BuildContext context) async {
-    final pin = _pinController.text.trim();
-    if (pin.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the 6-digit route end PIN.')),
-      );
-      return;
-    }
+class _ProductPickerCard extends StatelessWidget {
+  const _ProductPickerCard({
+    required this.product,
+    required this.qty,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
 
-    final closingStock = _closingStockLines
-        .map((item) => item.build())
-        .whereType<CloseStockLineInput>()
-        .toList();
-    final returnItems = _returnItemLines
-        .map((item) => item.build())
-        .whereType<ReturnItemInput>()
-        .toList();
-    final varianceReason = _varianceReasonController.text.trim();
+  final ShopCatalogProduct product;
+  final int qty;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
 
-    setState(() {
-      _isSubmitting = true;
-    });
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = qty > 0;
+    final imageUrl = AppConfig.resolveApiUrl(product.imageUrl);
 
-    final closed = await widget.onSubmit(
-      pin: pin,
-      closingStock: closingStock,
-      returnItems: returnItems,
-      varianceReason: varianceReason.isEmpty ? null : varianceReason,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isSelected ? AppTheme.primaryBrown : AppTheme.outlineWarm,
+          width: isSelected ? 1.8 : 1,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: AppTheme.primaryBrown.withAlpha(20),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Product image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          _ProductImagePlaceholder(product: product),
+                    )
+                  : _ProductImagePlaceholder(product: product),
+            ),
+            const SizedBox(width: 12),
+            // Product info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'SKU: ${product.sku}  ·  ${product.packSize}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${product.productsPerCase} units/case',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Case stepper
+            Column(
+              children: [
+                _StepperButton(
+                  icon: Icons.add_rounded,
+                  onPressed: onIncrement,
+                  filled: true,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '$qty',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: isSelected
+                          ? AppTheme.primaryBrownDark
+                          : AppTheme.textSoft,
+                    ),
+                  ),
+                ),
+                _StepperButton(
+                  icon: Icons.remove_rounded,
+                  onPressed: onDecrement,
+                  filled: false,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
+  }
+}
 
-    if (!context.mounted) {
-      return;
-    }
+class _ProductImagePlaceholder extends StatelessWidget {
+  const _ProductImagePlaceholder({required this.product});
 
-    setState(() {
-      _isSubmitting = false;
-    });
+  final ShopCatalogProduct product;
 
-    if (closed) {
-      Navigator.of(context).pop();
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceTint,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(
+        Icons.inventory_2_outlined,
+        color: AppTheme.primaryBrownDark,
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  const _StepperButton({
+    required this.icon,
+    required this.onPressed,
+    required this.filled,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: enabled
+              ? (filled ? AppTheme.primaryBrown : AppTheme.surfaceTint)
+              : AppTheme.outlineWarm.withAlpha(60),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled
+              ? (filled ? Colors.white : AppTheme.primaryBrownDark)
+              : AppTheme.textSoft,
+        ),
+      ),
+    );
   }
 }
 
@@ -2059,9 +2440,9 @@ class _BottomSheetShell extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   subtitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                 ),
                 const SizedBox(height: 22),
                 child,
@@ -2132,9 +2513,9 @@ class _SectionCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSoft,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
           ),
           const SizedBox(height: 18),
           child,
@@ -2162,8 +2543,8 @@ class _SelectableVehicleCard extends StatelessWidget {
     final borderColor = isSelected
         ? AppTheme.primaryBrown
         : enabled
-            ? AppTheme.outlineWarm
-            : AppTheme.outlineWarm.withAlpha(140);
+        ? AppTheme.outlineWarm
+        : AppTheme.outlineWarm.withAlpha(140);
 
     return Material(
       color: enabled ? Colors.white : AppTheme.surfaceTint,
@@ -2190,7 +2571,9 @@ class _SelectableVehicleCard extends StatelessWidget {
                 ),
                 child: Icon(
                   Icons.local_shipping_rounded,
-                  color: enabled ? AppTheme.primaryBrownDark : AppTheme.textSoft,
+                  color: enabled
+                      ? AppTheme.primaryBrownDark
+                      : AppTheme.textSoft,
                 ),
               ),
               const SizedBox(width: 14),
@@ -2199,7 +2582,9 @@ class _SelectableVehicleCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      vehicle.label.isEmpty ? vehicle.registrationNumber : vehicle.label,
+                      vehicle.label.isEmpty
+                          ? vehicle.registrationNumber
+                          : vehicle.label,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: enabled ? AppTheme.textDark : AppTheme.textSoft,
@@ -2220,7 +2605,9 @@ class _SelectableVehicleCard extends StatelessWidget {
                           ? 'Available for this route'
                           : vehicle.unavailableReason ?? 'Unavailable',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: enabled ? AppTheme.proceedOrderOlive : AppTheme.promotionMutedRed,
+                        color: enabled
+                            ? AppTheme.proceedOrderOlive
+                            : AppTheme.promotionMutedRed,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2228,7 +2615,9 @@ class _SelectableVehicleCard extends StatelessWidget {
                 ),
               ),
               Icon(
-                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
                 color: isSelected ? AppTheme.primaryBrown : AppTheme.textSoft,
               ),
             ],
@@ -2272,7 +2661,9 @@ class _BeatPlanOptionTile extends StatelessWidget {
             children: [
               Checkbox(
                 value: isSelected,
-                onChanged: onChanged == null ? null : (value) => onChanged!(value ?? false),
+                onChanged: onChanged == null
+                    ? null
+                    : (value) => onChanged!(value ?? false),
                 activeColor: AppTheme.primaryBrown,
               ),
               const SizedBox(width: 8),
@@ -2303,7 +2694,8 @@ class _BeatPlanOptionTile extends StatelessWidget {
                         _InfoPill(label: _formatSource(option.source)),
                         if (option.pendingDeliveryCount > 0)
                           _InfoPill(
-                            label: '${option.pendingDeliveryCount} delivery order(s)',
+                            label:
+                                '${option.pendingDeliveryCount} delivery order(s)',
                             color: AppTheme.addToCartClay,
                           ),
                       ],
@@ -2338,17 +2730,17 @@ class _BeatPlanListTile extends StatelessWidget {
         children: [
           Text(
             item.outletName,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           if ((item.ownerName ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               item.ownerName!.trim(),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSoft,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
             ),
           ],
           const SizedBox(height: 8),
@@ -2371,10 +2763,7 @@ class _BeatPlanListTile extends StatelessWidget {
 }
 
 class _DeliveryAlertTile extends StatelessWidget {
-  const _DeliveryAlertTile({
-    required this.alert,
-    required this.isIncluded,
-  });
+  const _DeliveryAlertTile({required this.alert, required this.isIncluded});
 
   final DeliveryAlert alert;
   final bool isIncluded;
@@ -2396,9 +2785,9 @@ class _DeliveryAlertTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   alert.outletName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               if (isIncluded)
@@ -2411,21 +2800,23 @@ class _DeliveryAlertTile extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '${alert.orderCount} ready-for-delivery order(s)',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSoft,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
           ),
           if (alert.products.isNotEmpty) ...[
             const SizedBox(height: 10),
-            ...alert.products.take(3).map(
-              (product) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${product.productName} · ${product.quantityCases} case(s)',
-                  style: Theme.of(context).textTheme.bodySmall,
+            ...alert.products
+                .take(3)
+                .map(
+                  (product) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      '${product.productName} · ${product.quantityCases} case(s)',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ],
         ],
       ),
@@ -2466,7 +2857,9 @@ class _DeliverySelectionTile extends StatelessWidget {
             children: [
               Checkbox(
                 value: isSelected,
-                onChanged: onChanged == null ? null : (value) => onChanged!(value ?? false),
+                onChanged: onChanged == null
+                    ? null
+                    : (value) => onChanged!(value ?? false),
                 activeColor: AppTheme.addToCartClay,
               ),
               const SizedBox(width: 8),
@@ -2483,21 +2876,23 @@ class _DeliverySelectionTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       '${alert.orderCount} ready-for-delivery order(s)',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSoft,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
                     ),
                     if (alert.products.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      ...alert.products.take(3).map(
-                        (product) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text(
-                            '${product.productName} · ${product.quantityCases} case(s)',
-                            style: Theme.of(context).textTheme.bodySmall,
+                      ...alert.products
+                          .take(3)
+                          .map(
+                            (product) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '${product.productName} · ${product.quantityCases} case(s)',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                     ],
                   ],
                 ),
@@ -2532,16 +2927,16 @@ class _StockLineTile extends StatelessWidget {
               children: [
                 Text(
                   line.productName,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   line.productId,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
                 ),
               ],
             ),
@@ -2591,9 +2986,9 @@ class _KeyValueRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSoft,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
               ),
               const SizedBox(height: 3),
               Text(
@@ -2612,10 +3007,7 @@ class _KeyValueRow extends StatelessWidget {
 }
 
 class _StatBadge extends StatelessWidget {
-  const _StatBadge({
-    required this.label,
-    required this.value,
-  });
+  const _StatBadge({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -2642,9 +3034,9 @@ class _StatBadge extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSoft,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
           ),
         ],
       ),
@@ -2653,10 +3045,7 @@ class _StatBadge extends StatelessWidget {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({
-    required this.label,
-    this.color = AppTheme.primaryBrown,
-  });
+  const _InfoPill({required this.label, this.color = AppTheme.primaryBrown});
 
   final String label;
   final Color color;
@@ -2681,10 +3070,7 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _EmptyMessage extends StatelessWidget {
-  const _EmptyMessage({
-    required this.icon,
-    required this.message,
-  });
+  const _EmptyMessage({required this.icon, required this.message});
 
   final IconData icon;
   final String message;
@@ -2706,9 +3092,9 @@ class _EmptyMessage extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textDark,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textDark),
             ),
           ),
         ],
@@ -2742,317 +3128,18 @@ class _ErrorPanel extends StatelessWidget {
   }
 }
 
-class _StockLineEditor extends StatelessWidget {
-  const _StockLineEditor({required this.data, this.onRemove});
-
-  final _StockLineFormData data;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceWarm,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: data.productIdController,
-                  decoration: const InputDecoration(labelText: 'Product ID'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextFormField(
-                  controller: data.quantityCasesController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Cases'),
-                ),
-              ),
-              if (onRemove != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: data.productNameController,
-            decoration: const InputDecoration(labelText: 'Product Name'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClosingStockEditor extends StatelessWidget {
-  const _ClosingStockEditor({required this.data, this.onRemove});
-
-  final _ClosingStockFormData data;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceWarm,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: data.productIdController,
-                  decoration: const InputDecoration(labelText: 'Product ID'),
-                ),
-              ),
-              if (onRemove != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: data.productNameController,
-            decoration: const InputDecoration(labelText: 'Product Name'),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: data.quantityCasesController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Cases'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextFormField(
-                  controller: data.quantityUnitsController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Units'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReturnItemEditor extends StatelessWidget {
-  const _ReturnItemEditor({required this.data, this.onRemove});
-
-  final _ReturnItemFormData data;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceWarm,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: data.productIdController,
-                  decoration: const InputDecoration(labelText: 'Product ID'),
-                ),
-              ),
-              if (onRemove != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: data.productNameController,
-            decoration: const InputDecoration(labelText: 'Product Name'),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: data.quantityCasesController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Cases'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextFormField(
-                  controller: data.reasonController,
-                  decoration: const InputDecoration(labelText: 'Reason'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StockLineFormData {
-  _StockLineFormData({
-    String? initialProductId,
-    String? initialProductName,
-    int? initialQuantityCases,
-  }) {
-    productIdController.text = initialProductId ?? '';
-    productNameController.text = initialProductName ?? '';
-    quantityCasesController.text =
-        initialQuantityCases == null ? '' : initialQuantityCases.toString();
-  }
-
-  final TextEditingController productIdController = TextEditingController();
-  final TextEditingController productNameController = TextEditingController();
-  final TextEditingController quantityCasesController = TextEditingController();
-
-  StockLine? build() {
-    final productId = productIdController.text.trim();
-    final productName = productNameController.text.trim();
-    final quantityCases = int.tryParse(quantityCasesController.text.trim()) ?? 0;
-
-    if (productId.isEmpty && productName.isEmpty && quantityCases == 0) {
-      return null;
-    }
-    if (productId.isEmpty || productName.isEmpty || quantityCases <= 0) {
-      return null;
-    }
-
-    return StockLine(
-      productId: productId,
-      productName: productName,
-      quantityCases: quantityCases,
-    );
-  }
-
-  void dispose() {
-    productIdController.dispose();
-    productNameController.dispose();
-    quantityCasesController.dispose();
-  }
-}
-
-class _ClosingStockFormData {
-  final TextEditingController productIdController = TextEditingController();
-  final TextEditingController productNameController = TextEditingController();
-  final TextEditingController quantityCasesController = TextEditingController();
-  final TextEditingController quantityUnitsController = TextEditingController();
-
-  CloseStockLineInput? build() {
-    final productId = productIdController.text.trim();
-    final productName = productNameController.text.trim();
-    final quantityCases = int.tryParse(quantityCasesController.text.trim()) ?? 0;
-    final quantityUnits = int.tryParse(quantityUnitsController.text.trim()) ?? 0;
-
-    if (productId.isEmpty &&
-        productName.isEmpty &&
-        quantityCases == 0 &&
-        quantityUnits == 0) {
-      return null;
-    }
-    if (productId.isEmpty || productName.isEmpty) {
-      return null;
-    }
-
-    return CloseStockLineInput(
-      productId: productId,
-      productName: productName,
-      quantityCases: quantityCases,
-      quantityUnits: quantityUnits,
-    );
-  }
-
-  void dispose() {
-    productIdController.dispose();
-    productNameController.dispose();
-    quantityCasesController.dispose();
-    quantityUnitsController.dispose();
-  }
-}
-
-class _ReturnItemFormData {
-  final TextEditingController productIdController = TextEditingController();
-  final TextEditingController productNameController = TextEditingController();
-  final TextEditingController quantityCasesController = TextEditingController();
-  final TextEditingController reasonController = TextEditingController();
-
-  ReturnItemInput? build() {
-    final productId = productIdController.text.trim();
-    final productName = productNameController.text.trim();
-    final quantityCases = int.tryParse(quantityCasesController.text.trim()) ?? 0;
-    final reason = reasonController.text.trim();
-
-    if (productId.isEmpty &&
-        productName.isEmpty &&
-        quantityCases == 0 &&
-        reason.isEmpty) {
-      return null;
-    }
-    if (productId.isEmpty || productName.isEmpty || reason.isEmpty) {
-      return null;
-    }
-
-    return ReturnItemInput(
-      productId: productId,
-      productName: productName,
-      quantityCases: quantityCases,
-      reason: reason,
-    );
-  }
-
-  void dispose() {
-    productIdController.dispose();
-    productNameController.dispose();
-    quantityCasesController.dispose();
-    reasonController.dispose();
-  }
-}
-
 class _BeatPlanOption {
   const _BeatPlanOption({
     required this.outletId,
+    required this.shopOwnerUserId,
     required this.outletName,
     required this.ownerName,
     required this.source,
     required this.pendingDeliveryCount,
   });
 
-  final String outletId;
+  final String? outletId;
+  final String? shopOwnerUserId;
   final String outletName;
   final String? ownerName;
   final String source;
@@ -3076,33 +3163,103 @@ RouteSetupWarehouse? _findWarehouse(
 }
 
 List<_BeatPlanOption> _buildBeatPlanOptions(SalesRoute route) {
-  final optionsByOutletId = <String, _BeatPlanOption>{};
+  final optionsByKey = <String, _BeatPlanOption>{};
+
+  void putOption(_BeatPlanOption option) {
+    final key = _beatPlanOptionKey(option);
+    if (key == null) {
+      return;
+    }
+
+    final existing = optionsByKey[key];
+    optionsByKey[key] = _BeatPlanOption(
+      outletId: option.outletId ?? existing?.outletId,
+      shopOwnerUserId: option.shopOwnerUserId ?? existing?.shopOwnerUserId,
+      outletName: option.outletName.isNotEmpty
+          ? option.outletName
+          : existing?.outletName ?? '',
+      ownerName: option.ownerName ?? existing?.ownerName,
+      source: option.source == 'MANUAL' && existing != null
+          ? existing.source
+          : option.source,
+      pendingDeliveryCount: option.pendingDeliveryCount > 0
+          ? option.pendingDeliveryCount
+          : existing?.pendingDeliveryCount ?? 0,
+    );
+  }
 
   for (final outlet in route.availableOutlets) {
-    optionsByOutletId[outlet.id] = _BeatPlanOption(
-      outletId: outlet.id,
-      outletName: outlet.outletName,
-      ownerName: outlet.ownerName,
-      source: 'MANUAL',
-      pendingDeliveryCount: 0,
+    putOption(
+      _BeatPlanOption(
+        outletId: outlet.id,
+        shopOwnerUserId: outlet.shopOwnerUserId,
+        outletName: outlet.outletName,
+        ownerName: outlet.ownerName,
+        source: outlet.source,
+        pendingDeliveryCount: 0,
+      ),
+    );
+  }
+
+  for (final outlet in route.allWarehouseOutlets) {
+    putOption(
+      _BeatPlanOption(
+        outletId: outlet.id,
+        shopOwnerUserId: outlet.shopOwnerUserId,
+        outletName: outlet.outletName,
+        ownerName: outlet.ownerName,
+        source: outlet.source,
+        pendingDeliveryCount: 0,
+      ),
+    );
+  }
+
+  for (final outlet in route.warehouseShopOutlets) {
+    putOption(
+      _BeatPlanOption(
+        outletId: outlet.id.isEmpty ? null : outlet.id,
+        shopOwnerUserId: outlet.shopOwnerUserId,
+        outletName: outlet.outletName,
+        ownerName: outlet.ownerName,
+        source: outlet.source,
+        pendingDeliveryCount: 0,
+      ),
     );
   }
 
   for (final item in route.beatPlanItems) {
-    optionsByOutletId[item.outletId] = _BeatPlanOption(
-      outletId: item.outletId,
-      outletName: item.outletName,
-      ownerName: item.ownerName,
-      source: item.source,
-      pendingDeliveryCount: item.pendingDeliveryCount,
+    putOption(
+      _BeatPlanOption(
+        outletId: item.outletId,
+        shopOwnerUserId: null,
+        outletName: item.outletName,
+        ownerName: item.ownerName,
+        source: item.source,
+        pendingDeliveryCount: item.pendingDeliveryCount,
+      ),
     );
   }
 
-  final options = optionsByOutletId.values.toList();
+  final options = optionsByKey.values.toList();
   options.sort(
-    (left, right) => left.outletName.toLowerCase().compareTo(right.outletName.toLowerCase()),
+    (left, right) =>
+        left.outletName.toLowerCase().compareTo(right.outletName.toLowerCase()),
   );
   return options;
+}
+
+String? _beatPlanOptionKey(_BeatPlanOption option) {
+  final outletId = option.outletId;
+  if (outletId != null && outletId.isNotEmpty) {
+    return 'outlet:$outletId';
+  }
+
+  final shopOwnerUserId = option.shopOwnerUserId;
+  if (shopOwnerUserId != null && shopOwnerUserId.isNotEmpty) {
+    return 'shop:$shopOwnerUserId';
+  }
+
+  return null;
 }
 
 List<StockLine> _buildReservedDeliveryStock(SalesRoute route) {
@@ -3113,7 +3270,9 @@ List<StockLine> _buildReservedDeliveryStock(SalesRoute route) {
   final stockByProductId = <String, StockLine>{};
 
   for (final alert in route.deliveryAlerts) {
-    final containsIncludedOrder = alert.orderIds.any(route.deliveryOrderIds.contains);
+    final containsIncludedOrder = alert.orderIds.any(
+      route.deliveryOrderIds.contains,
+    );
     if (!containsIncludedOrder) {
       continue;
     }
@@ -3138,7 +3297,9 @@ List<StockLine> _buildReservedDeliveryStock(SalesRoute route) {
 
   final lines = stockByProductId.values.toList();
   lines.sort(
-    (left, right) => left.productName.toLowerCase().compareTo(right.productName.toLowerCase()),
+    (left, right) => left.productName.toLowerCase().compareTo(
+      right.productName.toLowerCase(),
+    ),
   );
   return lines;
 }
@@ -3159,9 +3320,25 @@ String _formatSource(String source) {
       return 'Pending delivery';
     case 'TEMPLATE':
       return 'Saved template';
+    case 'WAREHOUSE_SHOP':
+      return 'Warehouse shop';
     case 'MANUAL':
     default:
       return 'Manual';
+  }
+}
+
+String _startRouteRequestSubtitle(String? loadStatus) {
+  switch (loadStatus) {
+    case 'PENDING':
+      return 'A load request is waiting for TM approval. Request the start PIN again if the manager needs a reminder.';
+    case 'REJECTED':
+      return 'TM rejected the latest load request. Review the reason, adjust the load, and re-request approval.';
+    case 'APPROVED':
+    case 'ADJUSTED':
+      return 'The load was approved. Refresh the route to enter the generated start PIN.';
+    default:
+      return 'Create a load request first. TM approval will generate the route-start PIN.';
   }
 }
 

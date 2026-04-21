@@ -4,10 +4,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:mobile/features/promotions/data/services/promotion_service.dart';
 import 'package:mobile/features/promotions/domain/promotion.dart';
 import 'package:mobile/features/sales_rep/data/services/outlet_visit_service.dart';
+import 'package:mobile/features/sales_rep/data/services/route_service.dart';
+import 'package:mobile/features/sales_rep/data/services/route_visit_progress_store.dart';
 import 'package:mobile/features/sales_rep/data/services/visit_service.dart';
 import 'package:mobile/features/home/data/services/product_catalog_service.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/sales_rep/presentation/widgets/visit/osa_product_card.dart';
+
+const _requiredPlanogramAnswerCount = 5;
+const _requiredPosmAnswerCount = 4;
+const _requiredFeedbackAnswerCount = 5;
 
 // ─────────────────────────────────────────────────────────────
 // Domain types
@@ -25,9 +31,9 @@ class StockEntry {
   }
 
   StockEntry copyWith({int? shelfCount, int? backroomCount}) => StockEntry(
-        shelfCount: shelfCount ?? this.shelfCount,
-        backroomCount: backroomCount ?? this.backroomCount,
-      );
+    shelfCount: shelfCount ?? this.shelfCount,
+    backroomCount: backroomCount ?? this.backroomCount,
+  );
 }
 
 class PromoCheckEntry {
@@ -55,7 +61,13 @@ class OutletVisitLoadingOutlets extends OutletVisitState {}
 
 class OutletVisitOutletsLoaded extends OutletVisitState {
   final List<TerritoryOutlet> outlets;
-  OutletVisitOutletsLoaded(this.outlets);
+  final Set<String> beatPlanOutletIds;
+  final Set<String> completedOutletIds;
+  OutletVisitOutletsLoaded(
+    this.outlets, {
+    this.beatPlanOutletIds = const {},
+    this.completedOutletIds = const {},
+  });
 }
 
 class OutletVisitInProgress extends OutletVisitState {
@@ -63,6 +75,9 @@ class OutletVisitInProgress extends OutletVisitState {
   final String routeId;
   final String territoryId;
   final TerritoryOutlet? selectedOutlet;
+  final List<TerritoryOutlet> visitQueue;
+  final Set<String> beatPlanOutletIds;
+  final Set<String> completedOutletIds;
   final List<ShopCatalogProduct> products;
 
   // OSA statuses (in/out of stock + reason)
@@ -76,6 +91,8 @@ class OutletVisitInProgress extends OutletVisitState {
 
   // OSA issue tags
   final Set<String> selectedOsaIssueTags;
+  final Map<String, Set<String>> osaIssueProductIds;
+  final Map<String, String> osaIssueDetails;
   final String competitorNotes;
 
   // Promotion checks
@@ -85,6 +102,7 @@ class OutletVisitInProgress extends OutletVisitState {
   // Planogram & POSM answers
   final Map<String, String> planogramAnswers;
   final Map<String, String> posmAnswers;
+  final Set<String> selectedPosmMaterials;
 
   // Outlet feedback
   final Map<String, String> outletFeedbackAnswers;
@@ -103,16 +121,22 @@ class OutletVisitInProgress extends OutletVisitState {
     required this.routeId,
     required this.territoryId,
     this.selectedOutlet,
+    this.visitQueue = const [],
+    this.beatPlanOutletIds = const {},
+    this.completedOutletIds = const {},
     this.products = const [],
     this.osaStatuses = const {},
     this.stockEntries = const {},
     this.expiryFlags = const {},
     this.selectedOsaIssueTags = const {},
+    this.osaIssueProductIds = const {},
+    this.osaIssueDetails = const {},
     this.competitorNotes = '',
     this.promotionChecks = const {},
     this.activePromotions = const [],
     this.planogramAnswers = const {},
     this.posmAnswers = const {},
+    this.selectedPosmMaterials = const {},
     this.outletFeedbackAnswers = const {},
     this.outletFeedbackNote = '',
     this.productQuantitiesSinceLastVisit = const {},
@@ -121,18 +145,27 @@ class OutletVisitInProgress extends OutletVisitState {
     this.localPhotoPaths = const [],
   });
 
+  bool get hasDeliveryDue =>
+      visit.hasPendingDelivery || (selectedOutlet?.hasPendingDelivery ?? false);
+
   OutletVisitInProgress copyWith({
     StoreVisit? visit,
+    List<TerritoryOutlet>? visitQueue,
+    Set<String>? beatPlanOutletIds,
+    Set<String>? completedOutletIds,
     List<ShopCatalogProduct>? products,
     Map<String, (OSAStatus, String?)>? osaStatuses,
     Map<String, StockEntry>? stockEntries,
     Map<String, bool>? expiryFlags,
     Set<String>? selectedOsaIssueTags,
+    Map<String, Set<String>>? osaIssueProductIds,
+    Map<String, String>? osaIssueDetails,
     String? competitorNotes,
     Map<String, PromoCheckEntry>? promotionChecks,
     List<Promotion>? activePromotions,
     Map<String, String>? planogramAnswers,
     Map<String, String>? posmAnswers,
+    Set<String>? selectedPosmMaterials,
     Map<String, String>? outletFeedbackAnswers,
     String? outletFeedbackNote,
     Map<String, int>? productQuantitiesSinceLastVisit,
@@ -145,20 +178,28 @@ class OutletVisitInProgress extends OutletVisitState {
       routeId: routeId,
       territoryId: territoryId,
       selectedOutlet: selectedOutlet,
+      visitQueue: visitQueue ?? this.visitQueue,
+      beatPlanOutletIds: beatPlanOutletIds ?? this.beatPlanOutletIds,
+      completedOutletIds: completedOutletIds ?? this.completedOutletIds,
       products: products ?? this.products,
       osaStatuses: osaStatuses ?? this.osaStatuses,
       stockEntries: stockEntries ?? this.stockEntries,
       expiryFlags: expiryFlags ?? this.expiryFlags,
       selectedOsaIssueTags: selectedOsaIssueTags ?? this.selectedOsaIssueTags,
+      osaIssueProductIds: osaIssueProductIds ?? this.osaIssueProductIds,
+      osaIssueDetails: osaIssueDetails ?? this.osaIssueDetails,
       competitorNotes: competitorNotes ?? this.competitorNotes,
       promotionChecks: promotionChecks ?? this.promotionChecks,
       activePromotions: activePromotions ?? this.activePromotions,
       planogramAnswers: planogramAnswers ?? this.planogramAnswers,
       posmAnswers: posmAnswers ?? this.posmAnswers,
+      selectedPosmMaterials:
+          selectedPosmMaterials ?? this.selectedPosmMaterials,
       outletFeedbackAnswers:
           outletFeedbackAnswers ?? this.outletFeedbackAnswers,
       outletFeedbackNote: outletFeedbackNote ?? this.outletFeedbackNote,
-      productQuantitiesSinceLastVisit: productQuantitiesSinceLastVisit ??
+      productQuantitiesSinceLastVisit:
+          productQuantitiesSinceLastVisit ??
           this.productQuantitiesSinceLastVisit,
       lastVisitDate: lastVisitDate ?? this.lastVisitDate,
       recentOrders: recentOrders ?? this.recentOrders,
@@ -170,7 +211,24 @@ class OutletVisitInProgress extends OutletVisitState {
 class OutletVisitCompleted extends OutletVisitState {
   final String message;
   final int durationSeconds;
-  OutletVisitCompleted({required this.message, required this.durationSeconds});
+  final String routeId;
+  final String territoryId;
+  final TerritoryOutlet? completedOutlet;
+  final TerritoryOutlet? nextOutlet;
+  final List<TerritoryOutlet> visitQueue;
+  final Set<String> beatPlanOutletIds;
+  final Set<String> completedOutletIds;
+  OutletVisitCompleted({
+    required this.message,
+    required this.durationSeconds,
+    required this.routeId,
+    required this.territoryId,
+    this.completedOutlet,
+    this.nextOutlet,
+    this.visitQueue = const [],
+    this.beatPlanOutletIds = const {},
+    this.completedOutletIds = const {},
+  });
 }
 
 class OutletVisitError extends OutletVisitState {
@@ -187,6 +245,8 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
   final VisitService _visitService = VisitService();
   final ProductCatalogService _productService = ProductCatalogService();
   final PromotionService _promotionService = PromotionService();
+  final RouteService _routeService = RouteService();
+  final RouteVisitProgressStore _visitProgressStore = RouteVisitProgressStore();
 
   OutletVisitCubit() : super(OutletVisitInitial());
 
@@ -209,11 +269,120 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
     }
   }
 
-  Future<void> loadOutlets() async {
+  Future<void> loadOutlets({
+    String? routeId,
+    String? territoryId,
+    List<TerritoryOutlet> beatPlanOutlets = const [],
+  }) async {
     emit(OutletVisitLoadingOutlets());
     try {
-      final outlets = await _outletVisitService.fetchMyOutlets();
-      emit(OutletVisitOutletsLoaded(outlets));
+      final results = await Future.wait<dynamic>([
+        _outletVisitService.fetchMyOutlets().catchError((_) {
+          return <TerritoryOutlet>[];
+        }),
+        _routeService.fetchMyRoute().catchError((_) {
+          return null;
+        }),
+      ]);
+
+      final territoryOutlets = results[0] as List<TerritoryOutlet>;
+      final route = results[1] as SalesRoute?;
+      final territoryById = {
+        for (final outlet in territoryOutlets)
+          if (outlet.id.isNotEmpty) outlet.id: outlet,
+      };
+      final routeMatchesRequest =
+          route == null || routeId == null || route.id == routeId;
+      final territoryMatchesRequest =
+          route?.territoryId == null ||
+          territoryId == null ||
+          route?.territoryId == territoryId;
+      final selectedRouteBeatPlanItems =
+          routeMatchesRequest && territoryMatchesRequest
+          ? route?.beatPlanItems.where((item) => item.isSelected).toList() ??
+                const <BeatPlanItem>[]
+          : const <BeatPlanItem>[];
+      final progressRouteId = routeId ?? route?.id;
+      final localCompletedBeatPlanIds = progressRouteId == null
+          ? <String>{}
+          : await _visitProgressStore.completedOutletIds(progressRouteId);
+      final completedBeatPlanIds = {
+        ...selectedRouteBeatPlanItems
+            .where((item) => item.visitStatus.toUpperCase() == 'COMPLETED')
+            .map((item) => item.outletId)
+            .where((id) => id.isNotEmpty),
+        ...localCompletedBeatPlanIds,
+      };
+      final pendingBeatPlanItems = selectedRouteBeatPlanItems
+          .where((item) => !completedBeatPlanIds.contains(item.outletId))
+          .toList();
+      final selectedBeatPlanIds = {
+        for (final item in selectedRouteBeatPlanItems)
+          if (item.outletId.isNotEmpty) item.outletId,
+        for (final outlet in beatPlanOutlets)
+          if (outlet.id.isNotEmpty) outlet.id,
+      };
+      final hasBeatPlan = selectedBeatPlanIds.isNotEmpty;
+
+      final ordered = <TerritoryOutlet>[];
+      final seenIds = <String>{};
+
+      void addOutlet(TerritoryOutlet outlet) {
+        if (outlet.id.isEmpty || !seenIds.add(outlet.id)) {
+          return;
+        }
+        ordered.add(outlet);
+      }
+
+      for (final outlet in beatPlanOutlets) {
+        if (completedBeatPlanIds.contains(outlet.id)) {
+          continue;
+        }
+        if (hasBeatPlan && !selectedBeatPlanIds.contains(outlet.id)) {
+          continue;
+        }
+        final territoryMatch = territoryById[outlet.id];
+        addOutlet(
+          (territoryMatch ?? outlet).copyWith(
+            isBeatPlanOutlet: true,
+            hasPendingDelivery: outlet.hasPendingDelivery,
+            pendingDeliveryCount: outlet.pendingDeliveryCount,
+            pendingDeliveryOrderIds: outlet.pendingDeliveryOrderIds,
+          ),
+        );
+      }
+
+      for (final item in pendingBeatPlanItems) {
+        final territoryMatch = territoryById[item.outletId];
+        addOutlet(
+          (territoryMatch ??
+                  TerritoryOutlet(
+                    id: item.outletId,
+                    outletName: item.outletName,
+                    ownerName: item.ownerName ?? '',
+                  ))
+              .copyWith(
+                isBeatPlanOutlet: true,
+                hasPendingDelivery: item.hasPendingDelivery,
+                pendingDeliveryCount: item.pendingDeliveryCount,
+                pendingDeliveryOrderIds: item.orderIds,
+              ),
+        );
+      }
+
+      if (!hasBeatPlan) {
+        for (final outlet in territoryOutlets) {
+          addOutlet(outlet);
+        }
+      }
+
+      emit(
+        OutletVisitOutletsLoaded(
+          ordered,
+          beatPlanOutletIds: selectedBeatPlanIds,
+          completedOutletIds: completedBeatPlanIds,
+        ),
+      );
     } on OutletVisitServiceException catch (e) {
       emit(OutletVisitError(e.message));
     } catch (e) {
@@ -225,6 +394,9 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
     required String routeId,
     required String territoryId,
     required TerritoryOutlet outlet,
+    List<TerritoryOutlet> visitQueue = const [],
+    Set<String> beatPlanOutletIds = const {},
+    Set<String> completedOutletIds = const {},
   }) async {
     emit(OutletVisitLoadingOutlets());
     try {
@@ -245,7 +417,7 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
         _productService.fetchCatalog(),
         _outletVisitService.getOutletContext(outlet.id),
         _promotionService
-            .fetchTerritoryPromotions(territoryId)
+            .fetchActivePromotions(territoryId)
             .catchError((_) => <Promotion>[]),
       ]);
 
@@ -262,16 +434,18 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
           routeId: routeId,
           territoryId: territoryId,
           selectedOutlet: outlet,
+          visitQueue: visitQueue.isEmpty ? [outlet] : visitQueue,
+          beatPlanOutletIds: beatPlanOutletIds,
+          completedOutletIds: completedOutletIds,
           products: products,
           osaStatuses: {
-            for (var p in products) p.id: (OSAStatus.none, null as String?)
+            for (var p in products) p.id: (OSAStatus.none, null as String?),
           },
           stockEntries: {for (var p in products) p.id: const StockEntry()},
           expiryFlags: {for (var p in products) p.id: false},
           activePromotions: promotions,
           promotionChecks: {
-            for (var p in promotions)
-              p.id: const PromoCheckEntry()
+            for (var p in promotions) p.id: const PromoCheckEntry(),
           },
           productQuantitiesSinceLastVisit: context.productQuantities,
           lastVisitDate: context.lastVisitDate,
@@ -300,9 +474,13 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
   void markAllInStock() {
     final s = state;
     if (s is! OutletVisitInProgress) return;
-    emit(s.copyWith(osaStatuses: {
-      for (var p in s.products) p.id: (OSAStatus.inStock, null as String?)
-    }));
+    emit(
+      s.copyWith(
+        osaStatuses: {
+          for (var p in s.products) p.id: (OSAStatus.inStock, null as String?),
+        },
+      ),
+    );
   }
 
   void updateStockEntry(String productId, int shelfCount, int backroomCount) {
@@ -332,12 +510,52 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
     final s = state;
     if (s is! OutletVisitInProgress) return;
     final newTags = Set<String>.from(s.selectedOsaIssueTags);
+    final newProducts = Map<String, Set<String>>.from(s.osaIssueProductIds);
+    final newDetails = Map<String, String>.from(s.osaIssueDetails);
     if (newTags.contains(tag)) {
       newTags.remove(tag);
+      newProducts.remove(tag);
+      newDetails.remove(tag);
     } else {
       newTags.add(tag);
     }
-    emit(s.copyWith(selectedOsaIssueTags: newTags));
+    emit(
+      s.copyWith(
+        selectedOsaIssueTags: newTags,
+        osaIssueProductIds: newProducts,
+        osaIssueDetails: newDetails,
+      ),
+    );
+  }
+
+  void toggleOsaIssueProduct(String tag, String productId) {
+    final s = state;
+    if (s is! OutletVisitInProgress) return;
+    final newProducts = Map<String, Set<String>>.fromEntries(
+      s.osaIssueProductIds.entries.map(
+        (entry) => MapEntry(entry.key, Set<String>.from(entry.value)),
+      ),
+    );
+    final selectedProducts = newProducts[tag] ?? <String>{};
+    if (selectedProducts.contains(productId)) {
+      selectedProducts.remove(productId);
+    } else {
+      selectedProducts.add(productId);
+    }
+    newProducts[tag] = selectedProducts;
+    emit(s.copyWith(osaIssueProductIds: newProducts));
+  }
+
+  void updateOsaIssueDetail(String tag, String detail) {
+    final s = state;
+    if (s is! OutletVisitInProgress) return;
+    final newDetails = Map<String, String>.from(s.osaIssueDetails);
+    if (detail.trim().isEmpty) {
+      newDetails.remove(tag);
+    } else {
+      newDetails[tag] = detail;
+    }
+    emit(s.copyWith(osaIssueDetails: newDetails));
   }
 
   void updateCompetitorNotes(String notes) {
@@ -348,7 +566,11 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
 
   // ── Promotions ───────────────────────────────────────────
 
-  void updatePromoCheck(String promotionId, {bool? informed, String? feedback}) {
+  void updatePromoCheck(
+    String promotionId, {
+    bool? informed,
+    String? feedback,
+  }) {
     final s = state;
     if (s is! OutletVisitInProgress) return;
     final newChecks = Map<String, PromoCheckEntry>.from(s.promotionChecks);
@@ -378,6 +600,18 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
     emit(s.copyWith(posmAnswers: newAnswers));
   }
 
+  void togglePosmMaterial(String material) {
+    final s = state;
+    if (s is! OutletVisitInProgress) return;
+    final materials = Set<String>.from(s.selectedPosmMaterials);
+    if (materials.contains(material)) {
+      materials.remove(material);
+    } else {
+      materials.add(material);
+    }
+    emit(s.copyWith(selectedPosmMaterials: materials));
+  }
+
   void addLocalPhoto(String path) {
     final s = state;
     if (s is! OutletVisitInProgress) return;
@@ -387,8 +621,11 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
   void removeLocalPhoto(String path) {
     final s = state;
     if (s is! OutletVisitInProgress) return;
-    emit(s.copyWith(
-        localPhotoPaths: s.localPhotoPaths.where((p) => p != path).toList()));
+    emit(
+      s.copyWith(
+        localPhotoPaths: s.localPhotoPaths.where((p) => p != path).toList(),
+      ),
+    );
   }
 
   // ── Outlet Feedback ──────────────────────────────────────
@@ -409,9 +646,74 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
 
   // ── Complete Visit ───────────────────────────────────────
 
+  String? _completionValidationMessage(OutletVisitInProgress s) {
+    if (s.products.isEmpty) {
+      return 'Product catalog is still loading. Please try again in a moment.';
+    }
+
+    final uncheckedProducts = s.products.where((product) {
+      final status = s.osaStatuses[product.id]?.$1 ?? OSAStatus.none;
+      return status == OSAStatus.none;
+    }).length;
+    if (uncheckedProducts > 0) {
+      return 'Complete shelf availability for all products before ending the visit.';
+    }
+
+    if (s.activePromotions.isNotEmpty) {
+      final pendingPromos = s.activePromotions.where((promotion) {
+        return s.promotionChecks[promotion.id]?.informed != true;
+      }).length;
+      if (pendingPromos > 0) {
+        return 'Confirm that every active promotion was explained to the shop owner.';
+      }
+    }
+
+    if (s.planogramAnswers.length < _requiredPlanogramAnswerCount ||
+        s.posmAnswers.length < _requiredPosmAnswerCount) {
+      return 'Complete the planogram and POSM checks before ending the visit.';
+    }
+
+    if (s.outletFeedbackAnswers.length < _requiredFeedbackAnswerCount &&
+        s.outletFeedbackNote.trim().isEmpty) {
+      return 'Capture outlet feedback before ending the visit.';
+    }
+
+    return null;
+  }
+
+  TerritoryOutlet? _nextOutletAfter(OutletVisitInProgress s) {
+    final completedOutletId = s.selectedOutlet?.id;
+    if (completedOutletId == null || completedOutletId.isEmpty) {
+      return null;
+    }
+
+    final completedIds = {...s.completedOutletIds, completedOutletId};
+    final hasBeatPlan = s.beatPlanOutletIds.isNotEmpty;
+    for (final outlet in s.visitQueue) {
+      if (outlet.id.isEmpty) {
+        continue;
+      }
+      if (hasBeatPlan && !s.beatPlanOutletIds.contains(outlet.id)) {
+        continue;
+      }
+      if (!completedIds.contains(outlet.id)) {
+        return outlet;
+      }
+    }
+
+    return null;
+  }
+
   Future<void> completeVisit(String visitId) async {
     final s = state;
     if (s is! OutletVisitInProgress) return;
+
+    final validationMessage = _completionValidationMessage(s);
+    if (validationMessage != null) {
+      emit(OutletVisitError(validationMessage));
+      emit(s);
+      return;
+    }
 
     emit(OutletVisitLoadingOutlets());
     try {
@@ -434,17 +736,33 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
       // Expiry items
       final expiryItems = s.products
           .where((p) => s.expiryFlags[p.id] == true)
-          .map((p) => {
-                'productId': p.id,
-                'productName': p.name,
-                'hasExpiredItems': true,
-              })
+          .map(
+            (p) => {
+              'productId': p.id,
+              'productName': p.name,
+              'hasExpiredItems': true,
+            },
+          )
           .toList();
 
       // OSA issue tags
-      final osaIssues = s.selectedOsaIssueTags
-          .map((tag) => {'tag': tag})
-          .toList();
+      final productNamesById = {
+        for (final product in s.products) product.id: product.name,
+      };
+      final osaIssues = s.selectedOsaIssueTags.map((tag) {
+        final productIds = s.osaIssueProductIds[tag]?.toList() ?? const [];
+        final productNames = productIds
+            .map((productId) => productNamesById[productId])
+            .whereType<String>()
+            .toList();
+        final detail = (s.osaIssueDetails[tag] ?? '').trim();
+        final notes = [
+          if (productNames.isNotEmpty) 'Products: ${productNames.join(', ')}',
+          if (detail.isNotEmpty) detail,
+        ].join(' | ');
+
+        return {'tag': tag, if (notes.isNotEmpty) 'notes': notes};
+      }).toList();
 
       // Promotion checks
       final promotionChecks = s.activePromotions.map((promo) {
@@ -465,15 +783,23 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
       final posmAnswers = s.posmAnswers.entries
           .map((e) => {'question': e.key, 'answer': e.value})
           .toList();
+      if (s.selectedPosmMaterials.isNotEmpty) {
+        posmAnswers.add({
+          'question': 'POSM materials delivered or placed',
+          'answer': s.selectedPosmMaterials.join(', '),
+        });
+      }
 
       // Outlet feedback answers
       final feedbackAnswers = s.outletFeedbackAnswers.entries
           .map((e) => {'question': e.key, 'answer': e.value})
           .toList();
 
-      final planogramOk = s.planogramAnswers.values.isNotEmpty &&
+      final planogramOk =
+          s.planogramAnswers.values.isNotEmpty &&
           s.planogramAnswers.values.every((v) => v == 'Yes');
-      final posmOk = s.posmAnswers.values.isNotEmpty &&
+      final posmOk =
+          s.posmAnswers.values.isNotEmpty &&
           s.posmAnswers.values.every((v) => v == 'Yes');
 
       final res = await _visitService.completeVisit(
@@ -481,22 +807,65 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
         stockItems: stockItems,
         expiryItems: expiryItems.isNotEmpty ? expiryItems : null,
         osaIssues: osaIssues.isNotEmpty ? osaIssues : null,
-        competitorNotes:
-            s.competitorNotes.isNotEmpty ? s.competitorNotes : null,
+        competitorNotes: s.competitorNotes.isNotEmpty
+            ? s.competitorNotes
+            : null,
         promotionChecks: promotionChecks.isNotEmpty ? promotionChecks : null,
         planogramAnswers: planogramAnswers.isNotEmpty ? planogramAnswers : null,
         posmAnswers: posmAnswers.isNotEmpty ? posmAnswers : null,
-        outletFeedbackAnswers:
-            feedbackAnswers.isNotEmpty ? feedbackAnswers : null,
+        outletFeedbackAnswers: feedbackAnswers.isNotEmpty
+            ? feedbackAnswers
+            : null,
         planogramOk: planogramOk,
         posmOk: posmOk,
         feedback: s.outletFeedbackNote.isNotEmpty ? s.outletFeedbackNote : null,
       );
 
-      emit(OutletVisitCompleted(
-        message: res.message,
-        durationSeconds: res.durationSeconds,
-      ));
+      for (final path in s.localPhotoPaths) {
+        try {
+          await _visitService.uploadVisitPhoto(
+            visitId: visitId,
+            filePath: path,
+          );
+        } catch (_) {
+          // Photo upload is best-effort; the visit itself is already saved.
+        }
+      }
+
+      final completedOutletId = s.selectedOutlet?.id;
+      final completedOutletIds = {
+        ...s.completedOutletIds,
+        if (completedOutletId != null && completedOutletId.isNotEmpty)
+          completedOutletId,
+      };
+      if (completedOutletId != null && completedOutletId.isNotEmpty) {
+        try {
+          await _visitProgressStore.markOutletCompleted(
+            routeId: s.routeId,
+            outletId: completedOutletId,
+          );
+        } catch (_) {
+          // The backend visit is already saved; local route progress is a UI aid.
+        }
+      }
+      final nextOutlet = _nextOutletAfter(s);
+      final completedMessage =
+          nextOutlet == null && s.beatPlanOutletIds.isNotEmpty
+          ? "All shops in today's route are done. Good job!"
+          : res.message;
+      emit(
+        OutletVisitCompleted(
+          message: completedMessage,
+          durationSeconds: res.durationSeconds,
+          routeId: s.routeId,
+          territoryId: s.territoryId,
+          completedOutlet: s.selectedOutlet,
+          nextOutlet: nextOutlet,
+          visitQueue: s.visitQueue,
+          beatPlanOutletIds: s.beatPlanOutletIds,
+          completedOutletIds: completedOutletIds,
+        ),
+      );
     } on VisitServiceException catch (e) {
       emit(OutletVisitError(e.message));
     } catch (e) {

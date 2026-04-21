@@ -90,12 +90,7 @@ class UploadReportCubit extends Cubit<UploadReportState> {
         ),
       );
     } on UploadReportServiceException catch (e) {
-      emit(
-        state.copyWith(
-          isLoadingReports: false,
-          errorMessage: e.message,
-        ),
-      );
+      emit(state.copyWith(isLoadingReports: false, errorMessage: e.message));
     } catch (e) {
       emit(
         state.copyWith(
@@ -117,19 +112,9 @@ class UploadReportCubit extends Cubit<UploadReportState> {
 
     try {
       final report = await _service.fetchReport(reportId: reportId);
-      emit(
-        state.copyWith(
-          selectedReport: report,
-          isLoadingReports: false,
-        ),
-      );
+      emit(state.copyWith(selectedReport: report, isLoadingReports: false));
     } on UploadReportServiceException catch (e) {
-      emit(
-        state.copyWith(
-          isLoadingReports: false,
-          errorMessage: e.message,
-        ),
-      );
+      emit(state.copyWith(isLoadingReports: false, errorMessage: e.message));
     } catch (e) {
       emit(
         state.copyWith(
@@ -163,12 +148,7 @@ class UploadReportCubit extends Cubit<UploadReportState> {
         ),
       );
     } on UploadReportServiceException catch (e) {
-      emit(
-        state.copyWith(
-          isGenerating: false,
-          errorMessage: e.message,
-        ),
-      );
+      emit(state.copyWith(isGenerating: false, errorMessage: e.message));
     } catch (e) {
       emit(
         state.copyWith(
@@ -182,7 +162,9 @@ class UploadReportCubit extends Cubit<UploadReportState> {
   Future<void> saveDraftComments(String repComments) async {
     final report = state.selectedReport;
     if (report == null) {
-      emit(state.copyWith(errorMessage: 'Generate or open a draft report first.'));
+      emit(
+        state.copyWith(errorMessage: 'Generate or open a draft report first.'),
+      );
       return;
     }
 
@@ -209,12 +191,7 @@ class UploadReportCubit extends Cubit<UploadReportState> {
         ),
       );
     } on UploadReportServiceException catch (e) {
-      emit(
-        state.copyWith(
-          isSavingDraft: false,
-          errorMessage: e.message,
-        ),
-      );
+      emit(state.copyWith(isSavingDraft: false, errorMessage: e.message));
     } catch (e) {
       emit(
         state.copyWith(
@@ -252,17 +229,58 @@ class UploadReportCubit extends Cubit<UploadReportState> {
         ),
       );
     } on UploadReportServiceException catch (e) {
-      emit(
-        state.copyWith(
-          isSubmitting: false,
-          errorMessage: e.message,
-        ),
-      );
+      emit(state.copyWith(isSubmitting: false, errorMessage: e.message));
     } catch (e) {
       emit(
         state.copyWith(
           isSubmitting: false,
           errorMessage: 'Failed to submit report: $e',
+        ),
+      );
+    }
+  }
+
+  Future<void> submitReports(Set<String> reportIds) async {
+    final ids = reportIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) {
+      emit(state.copyWith(errorMessage: 'Select at least one draft report.'));
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        isSubmitting: true,
+        errorMessage: null,
+        successMessage: null,
+      ),
+    );
+
+    try {
+      DailyReportDetail? selectedReport = state.selectedReport;
+      for (final id in ids) {
+        final submitted = await _service.submitReport(reportId: id);
+        if (selectedReport?.id == id) {
+          selectedReport = submitted;
+        }
+      }
+
+      final reports = await _service.fetchMyReports();
+      emit(
+        state.copyWith(
+          reports: reports,
+          selectedReport: selectedReport,
+          isSubmitting: false,
+          successMessage:
+              '${ids.length} report${ids.length == 1 ? '' : 's'} uploaded successfully.',
+        ),
+      );
+    } on UploadReportServiceException catch (e) {
+      emit(state.copyWith(isSubmitting: false, errorMessage: e.message));
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'Failed to upload reports: $e',
         ),
       );
     }

@@ -1,5 +1,5 @@
 class AppConfig {
-  static const _productionApiBaseUrl = 'https://backend.obscuranet.it.com';
+  static const _productionApiBaseUrl = 'http://206.189.144.128:3000';
   static const _apiBaseUrlOverride = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',

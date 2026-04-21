@@ -8,8 +8,11 @@ import 'package:mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile/features/home/presentation/cubit/home_cubit.dart';
 import 'package:mobile/features/home/presentation/cubit/home_state.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/sales_return_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/cubit/rep_order_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/upload_report_cubit.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/end_route_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/outlet_visit_page.dart';
+import 'package:mobile/features/sales_rep/presentation/pages/place_order_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/register_outlet_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/report_incident_page.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/returning_products_page.dart';
@@ -58,7 +61,26 @@ class _SalesRepHomeView extends StatefulWidget {
 class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
   int _currentIndex = 0;
 
+  Future<void> _refreshHome() async {
+    if (!mounted) {
+      return;
+    }
+    await context.read<HomeCubit>().loadHomeData();
+  }
+
+  Future<void> _pushAndRefresh(Widget page) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => page));
+    await _refreshHome();
+  }
+
   String _buildShopsTitle(HomeLoaded state) {
+    if (!state.hasActiveRoute) {
+      return state.hasReportableRoute
+          ? 'Route closed. Report ready'
+          : 'No active route today';
+    }
     if (state.shopsLeft <= 0) {
       return 'No shops left to visit today';
     }
@@ -69,8 +91,13 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
   }
 
   String _buildShopsSubtitle(HomeLoaded state) {
+    if (!state.hasActiveRoute) {
+      return state.hasReportableRoute
+          ? 'Generate and upload the final report'
+          : 'Start the day to create today\'s route';
+    }
     if (state.shopsLeft <= 0) {
-      return 'Today\'s best plan is complete';
+      return 'Today\'s beat plan is complete';
     }
     return state.hasActiveRoute ? 'Route is active' : 'From today\'s shop list';
   }
@@ -92,9 +119,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                   child: Text(
                     state.message,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.kTextDark,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: AppTheme.kTextDark),
                   ),
                 ),
               );
@@ -108,8 +135,8 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
               child: _currentIndex == 0
                   ? _buildHomeTab(context, state)
                   : _currentIndex == 1
-                      ? const SalesRepActivityTab()
-                      : _buildSettingsTab(context, state),
+                  ? const SalesRepActivityTab()
+                  : _buildSettingsTab(context, state),
             );
           },
         ),
@@ -125,9 +152,21 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           });
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'Activity'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications),
+            label: 'Activity',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
         ],
       ),
     );
@@ -265,7 +304,8 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                       height: 74,
                     ),
                     _HeroProductImage(
-                      assetPath: 'assets/images/products/nestle_everyday_clean.png',
+                      assetPath:
+                          'assets/images/products/nestle_everyday_clean.png',
                       left: 90,
                       top: 62,
                       height: 54,
@@ -284,10 +324,11 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                       Expanded(
                         child: Text(
                           _getGreeting(),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                       Container(
@@ -299,7 +340,11 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                           ),
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+                          icon: const Icon(
+                            Icons.logout,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           onPressed: () => _handleLogout(context),
                         ),
                       ),
@@ -310,10 +355,11 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                     width: 170,
                     child: Text(
                       'Hello ${state.firstName}',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -366,8 +412,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            alignStart ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        crossAxisAlignment: alignStart
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, color: AppTheme.kBrown, size: 24),
@@ -406,6 +453,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
 
   Widget _buildDashboardList(BuildContext context, HomeLoaded state) {
     final hasRoute = state.hasActiveRoute;
+    final routeId = state.activeRouteId ?? '';
+    final territoryId = state.activeTerritoryId ?? state.territoryId ?? '';
+    final reportRouteId = state.reportableRouteId ?? '';
 
     return Column(
       children: [
@@ -416,11 +466,7 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           icon: Icons.wb_sunny_outlined,
           color: AppTheme.kOrange,
           isLocked: false,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const StartRoutePage()),
-            );
-          },
+          onTap: () => _pushAndRefresh(const StartRoutePage()),
         ),
         _buildActionCard(
           context: context,
@@ -429,16 +475,12 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           icon: Icons.alt_route,
           color: AppTheme.kBrown,
           isLocked: false,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SmartRoutePage(
-                  routeId: state.activeRouteId,
-                  territoryId: state.activeTerritoryId,
-                ),
-              ),
-            );
-          },
+          onTap: () => _pushAndRefresh(
+            SmartRoutePage(
+              routeId: state.activeRouteId,
+              territoryId: state.activeTerritoryId,
+            ),
+          ),
         ),
         _buildActionCard(
           context: context,
@@ -447,18 +489,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           icon: Icons.storefront_outlined,
           color: AppTheme.kBrown,
           isLocked: !hasRoute,
-          onTap: () {
-            final routeId = state.activeRouteId ?? '';
-            final territoryId = state.activeTerritoryId ?? '';
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => OutletVisitPage(
-                  routeId: routeId,
-                  territoryId: territoryId,
-                ),
-              ),
-            );
-          },
+          onTap: () => _pushAndRefresh(
+            OutletVisitPage(routeId: routeId, territoryId: territoryId),
+          ),
         ),
         _buildActionCard(
           context: context,
@@ -467,36 +500,35 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           icon: Icons.assignment_return_outlined,
           color: AppTheme.kBrown,
           isLocked: !hasRoute,
-          onTap: () {
-            final routeId = state.activeRouteId ?? '';
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => BlocProvider(
-                  create: (_) => SalesReturnCubit(),
-                  child: ReturningProductsPage(routeId: routeId),
-                ),
-              ),
-            );
-          },
+          onTap: () => _pushAndRefresh(
+            BlocProvider(
+              create: (_) => SalesReturnCubit(),
+              child: ReturningProductsPage(routeId: routeId),
+            ),
+          ),
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'End Route',
+          subtitle: 'Hand over returns and remaining lorry stock',
+          icon: Icons.fact_check_outlined,
+          color: AppTheme.proceedOrderOlive,
+          isLocked: !hasRoute,
+          onTap: () => _pushAndRefresh(EndRoutePage(routeId: routeId)),
         ),
         _buildActionCard(
           context: context,
           title: 'Uploads',
-          subtitle: 'View orders, reports, and upload daily data',
+          subtitle: 'Generate, review, and upload route reports',
           icon: Icons.cloud_upload_outlined,
           color: AppTheme.kBrown,
-          isLocked: false,
-          onTap: () {
-            final routeId = state.activeRouteId ?? '';
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => BlocProvider(
-                  create: (_) => UploadReportCubit()..loadMyReports(),
-                  child: UploadReportPage(routeId: routeId),
-                ),
-              ),
-            );
-          },
+          isLocked: !state.hasReportableRoute,
+          onTap: () => _pushAndRefresh(
+            BlocProvider(
+              create: (_) => UploadReportCubit()..loadMyReports(),
+              child: UploadReportPage(routeId: reportRouteId),
+            ),
+          ),
         ),
         _buildActionCard(
           context: context,
@@ -509,12 +541,22 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
             final territoryId =
                 widget.normalizeTerritoryId(state.activeTerritoryId) ??
                 widget.normalizeTerritoryId(state.territoryId);
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RegisterOutletPage(territoryId: territoryId ?? ''),
-              ),
-            );
+            _pushAndRefresh(RegisterOutletPage(territoryId: territoryId ?? ''));
           },
+        ),
+        _buildActionCard(
+          context: context,
+          title: 'Place an Order',
+          subtitle: 'Create assisted orders for assigned shops',
+          icon: Icons.add_shopping_cart_outlined,
+          color: AppTheme.proceedOrderOlive,
+          isLocked: !hasRoute,
+          onTap: () => _pushAndRefresh(
+            BlocProvider(
+              create: (_) => RepOrderCubit(),
+              child: PlaceOrderPage(routeId: routeId),
+            ),
+          ),
         ),
         _buildActionCard(
           context: context,
@@ -535,13 +577,8 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
               return;
             }
 
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ReportIncidentPage(
-                  routeId: routeId,
-                  territoryId: territoryId,
-                ),
-              ),
+            _pushAndRefresh(
+              ReportIncidentPage(routeId: routeId, territoryId: territoryId),
             );
           },
         ),
@@ -590,7 +627,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: isLocked ? Colors.grey.shade400 : color.withValues(alpha: 0.12),
+                    color: isLocked
+                        ? Colors.grey.shade400
+                        : color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -605,16 +644,21 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: isLocked ? Colors.grey.shade700 : AppTheme.kTextDark,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: isLocked
+                                  ? Colors.grey.shade700
+                                  : AppTheme.kTextDark,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isLocked ? Colors.grey.shade600 : AppTheme.textSoft,
+                          color: isLocked
+                              ? Colors.grey.shade600
+                              : AppTheme.textSoft,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -623,7 +667,9 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                 ),
                 const SizedBox(width: 10),
                 Icon(
-                  isLocked ? Icons.lock_outline : Icons.arrow_forward_ios_rounded,
+                  isLocked
+                      ? Icons.lock_outline
+                      : Icons.arrow_forward_ios_rounded,
                   size: isLocked ? 20 : 18,
                   color: isLocked ? Colors.grey.shade500 : AppTheme.kBrown,
                 ),
@@ -679,17 +725,17 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                           children: [
                             Text(
                               state.fullName,
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.kTextDark,
-                              ),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.kTextDark,
+                                  ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Sales Representative',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppTheme.textSoft,
-                              ),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppTheme.textSoft),
                             ),
                           ],
                         ),

@@ -17,20 +17,14 @@ class RepOrderLoading extends RepOrderState {
 }
 
 class RepOrderPendingPin extends RepOrderState {
-  const RepOrderPendingPin({
-    required this.orderId,
-    required this.message,
-  });
+  const RepOrderPendingPin({required this.orderId, required this.message});
 
   final String orderId;
   final String message;
 }
 
 class RepOrderDraftSaved extends RepOrderState {
-  const RepOrderDraftSaved({
-    required this.orderId,
-    required this.message,
-  });
+  const RepOrderDraftSaved({required this.orderId, required this.message});
 
   final String orderId;
   final String message;
@@ -69,7 +63,10 @@ class RepOrderCubit extends Cubit<RepOrderState> {
     _cartItems = List<ShopCartItem>.unmodifiable(items);
   }
 
-  Future<void> submitOrderRequest(String shopId) async {
+  Future<void> submitOrderRequest({
+    required String routeId,
+    required String shopId,
+  }) async {
     if (_cartItems.isEmpty) {
       emit(const RepOrderError('Add at least one product before submitting.'));
       return;
@@ -79,36 +76,40 @@ class RepOrderCubit extends Cubit<RepOrderState> {
 
     try {
       final result = await _orderService.requestAssistedOrderResult(
+        routeId,
         shopId,
         _cartItems,
       );
 
-      if (result.status.toUpperCase() == 'DRAFT' || !result.requiresPin) {
+      final normalizedStatus = result.status.toUpperCase();
+      if (normalizedStatus == 'CONFIRMED' || normalizedStatus == 'COMPLETED') {
         emit(
-          RepOrderDraftSaved(
+          RepOrderSuccess(
             orderId: result.orderId,
+            orderCode: result.orderCode,
             message: result.message,
+            assistedReason: 'Captured during store visit',
           ),
         );
         return;
       }
 
+      if (normalizedStatus == 'DRAFT' || !result.requiresPin) {
+        emit(
+          RepOrderDraftSaved(orderId: result.orderId, message: result.message),
+        );
+        return;
+      }
+
       emit(
-        RepOrderPendingPin(
-          orderId: result.orderId,
-          message: result.message,
-        ),
+        RepOrderPendingPin(orderId: result.orderId, message: result.message),
       );
     } on OrderServiceException catch (error) {
       emit(RepOrderError(error.message));
     }
   }
 
-  Future<void> confirmOrder(
-    String orderId,
-    String pin,
-    String reason,
-  ) async {
+  Future<void> confirmOrder(String orderId, String pin, String reason) async {
     if (orderId.trim().isEmpty) {
       emit(const RepOrderError('Missing order reference for confirmation.'));
       return;

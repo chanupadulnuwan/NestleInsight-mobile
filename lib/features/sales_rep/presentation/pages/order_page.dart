@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/home/data/services/product_catalog_service.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/orders/domain/shop_cart_item.dart';
+import 'package:mobile/features/sales_rep/data/services/outlet_visit_service.dart';
+import 'package:mobile/features/sales_rep/data/services/route_service.dart';
 import 'package:mobile/features/sales_rep/presentation/cubit/rep_order_cubit.dart';
 import 'package:mobile/features/sales_rep/presentation/widgets/pin_confirmation_dialog.dart';
 
+import 'immediate_delivery_page.dart';
 import 'order_success_screen.dart';
 
 class OrderPage extends StatefulWidget {
@@ -27,10 +31,14 @@ class OrderPage extends StatefulWidget {
 
 class _OrderPageState extends State<OrderPage> {
   final ProductCatalogService _productCatalogService = ProductCatalogService();
+  final OutletVisitService _outletVisitService = OutletVisitService();
+  final RouteService _routeService = RouteService();
   final Map<String, int> _cart = <String, int>{};
 
   List<ShopCatalogProduct> _products = const <ShopCatalogProduct>[];
+  List<Map<String, dynamic>> _lastOrderItems = const <Map<String, dynamic>>[];
   bool _isLoadingCatalog = true;
+  bool _isLoadingLastOrder = false;
   bool _isPinDialogOpen = false;
   String? _catalogError;
 
@@ -57,6 +65,7 @@ class _OrderPageState extends State<OrderPage> {
             .where((product) => product.isAvailable)
             .toList(growable: false);
       });
+      await _loadLastOrderItems();
     } on ProductCatalogServiceException catch (error) {
       if (!mounted) {
         return;
@@ -70,6 +79,36 @@ class _OrderPageState extends State<OrderPage> {
         setState(() {
           _isLoadingCatalog = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadLastOrderItems() async {
+    if (widget.shopId.trim().isEmpty) {
+      return;
+    }
+
+    setState(() => _isLoadingLastOrder = true);
+    try {
+      final context = await _outletVisitService.getOutletContext(widget.shopId);
+      final recentOrder = context.recentOrders
+          .cast<Map<String, dynamic>?>()
+          .firstWhere((order) => order?['items'] is List, orElse: () => null);
+      final rawItems = recentOrder?['items'];
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastOrderItems = rawItems is List
+            ? rawItems
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList(growable: false)
+            : const <Map<String, dynamic>>[];
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLastOrder = false);
       }
     }
   }
@@ -125,9 +164,50 @@ class _OrderPageState extends State<OrderPage> {
     _syncCubitCart();
   }
 
+  void _fillWithLastOrder() {
+    if (_lastOrderItems.isEmpty) {
+      return;
+    }
+
+    final availableProductIds = _products.map((product) => product.id).toSet();
+    final nextCart = <String, int>{};
+    for (final item in _lastOrderItems) {
+      final productId = item['productId']?.toString();
+      final quantity = item['quantity'];
+      final parsedQuantity = quantity is num
+          ? quantity.toInt()
+          : int.tryParse(quantity?.toString() ?? '') ?? 0;
+      if (productId != null &&
+          productId.isNotEmpty &&
+          availableProductIds.contains(productId) &&
+          parsedQuantity > 0) {
+        nextCart[productId] = parsedQuantity.clamp(1, 99);
+      }
+    }
+
+    if (nextCart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No available products from the last order.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _cart
+        ..clear()
+        ..addAll(nextCart);
+    });
+    _syncCubitCart();
+  }
+
   Future<void> _submitOrderRequest() async {
     _syncCubitCart();
-    await context.read<RepOrderCubit>().submitOrderRequest(widget.shopId);
+    await context.read<RepOrderCubit>().submitOrderRequest(
+      routeId: widget.routeId,
+      shopId: widget.shopId,
+    );
   }
 
   Future<void> _openPinDialog(String orderId) async {
@@ -160,6 +240,7 @@ class _OrderPageState extends State<OrderPage> {
 
   Future<void> _handleSuccess(RepOrderSuccess state) async {
     final totalAmount = _cartTotal;
+    final cartItems = _buildCartItems();
 
     if (_isPinDialogOpen) {
       Navigator.of(context, rootNavigator: true).pop();
@@ -170,12 +251,39 @@ class _OrderPageState extends State<OrderPage> {
       }
     }
 
+    final deliveryPreview = await _buildImmediateDeliveryPreview(cartItems);
+    if (!mounted) {
+      return;
+    }
+
+    final shouldDeliverNow = deliveryPreview == null
+        ? false
+        : await _askForImmediateDelivery(deliveryPreview);
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
       _cart.clear();
     });
     context.read<RepOrderCubit>().reset();
 
     if (!mounted) {
+      return;
+    }
+
+    if (shouldDeliverNow) {
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ImmediateDeliveryPage(
+            routeId: widget.routeId,
+            orderId: state.orderId,
+            orderCode: state.orderCode,
+            shopName: widget.shopName,
+            lines: deliveryPreview.lines,
+          ),
+        ),
+      );
       return;
     }
 
@@ -190,6 +298,93 @@ class _OrderPageState extends State<OrderPage> {
         ),
       ),
     );
+  }
+
+  Future<_ImmediateDeliveryPreview?> _buildImmediateDeliveryPreview(
+    List<ShopCartItem> cartItems,
+  ) async {
+    if (cartItems.isEmpty) {
+      return null;
+    }
+
+    try {
+      final route = await _routeService.fetchMyRoute();
+      if (route == null || route.id != widget.routeId) {
+        return null;
+      }
+
+      final stockByProduct = <String, int>{};
+      for (final stock in [
+        ...?route.vanLoadRequest?.freeSaleStock,
+        ...?route.vanLoadRequest?.deliveryStock,
+      ]) {
+        stockByProduct[stock.productId] =
+            (stockByProduct[stock.productId] ?? 0) + stock.quantityCases;
+      }
+
+      if (stockByProduct.values.every((quantity) => quantity <= 0)) {
+        return null;
+      }
+
+      final lines = <ImmediateDeliveryPreviewLine>[];
+      for (final item in cartItems) {
+        final available = stockByProduct[item.product.id] ?? 0;
+        final deliverable = available < item.quantity
+            ? available
+            : item.quantity;
+        stockByProduct[item.product.id] = available - deliverable;
+        lines.add(
+          ImmediateDeliveryPreviewLine(
+            product: item.product,
+            requestedCases: item.quantity,
+            availableCases: available,
+          ),
+        );
+      }
+
+      if (lines.every((line) => line.deliveredCases <= 0)) {
+        return null;
+      }
+
+      return _ImmediateDeliveryPreview(lines);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _askForImmediateDelivery(
+    _ImmediateDeliveryPreview preview,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          preview.isPartial
+              ? 'Deliver available stock now?'
+              : 'Deliver this order now?',
+        ),
+        content: Text(
+          preview.isPartial
+              ? 'Your lorry can cover ${preview.deliveredCases} case(s) now. The remaining ${preview.pendingCases} case(s) will become a backorder for TM approval.'
+              : 'Your lorry has the full order available. You can complete delivery now after recording confirmation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not Now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.proceedOrderOlive,
+            ),
+            child: const Text('Deliver Now'),
+          ),
+        ],
+      ),
+    );
+
+    return result == true;
   }
 
   @override
@@ -265,6 +460,9 @@ class _OrderPageState extends State<OrderPage> {
                           shopName: widget.shopName,
                           products: _products,
                           cart: _cart,
+                          isLoadingLastOrder: _isLoadingLastOrder,
+                          hasLastOrder: _lastOrderItems.isNotEmpty,
+                          onFillWithLastOrder: _fillWithLastOrder,
                           onQuantityChanged: _updateQuantity,
                         ),
                       ),
@@ -285,17 +483,37 @@ class _OrderPageState extends State<OrderPage> {
   }
 }
 
+class _ImmediateDeliveryPreview {
+  const _ImmediateDeliveryPreview(this.lines);
+
+  final List<ImmediateDeliveryPreviewLine> lines;
+
+  bool get isPartial => lines.any((line) => line.pendingCases > 0);
+
+  int get deliveredCases =>
+      lines.fold<int>(0, (sum, line) => sum + line.deliveredCases);
+
+  int get pendingCases =>
+      lines.fold<int>(0, (sum, line) => sum + line.pendingCases);
+}
+
 class _ProductSelectionView extends StatelessWidget {
   const _ProductSelectionView({
     required this.shopName,
     required this.products,
     required this.cart,
+    required this.isLoadingLastOrder,
+    required this.hasLastOrder,
+    required this.onFillWithLastOrder,
     required this.onQuantityChanged,
   });
 
   final String shopName;
   final List<ShopCatalogProduct> products;
   final Map<String, int> cart;
+  final bool isLoadingLastOrder;
+  final bool hasLastOrder;
+  final VoidCallback onFillWithLastOrder;
   final void Function(String productId, int nextQuantity) onQuantityChanged;
 
   @override
@@ -313,9 +531,41 @@ class _ProductSelectionView extends StatelessWidget {
         _InfoCard(
           title: 'Create assisted order',
           message:
-              'Select products for ${shopName.trim().isEmpty ? 'this outlet' : shopName}. When the order is submitted, the system sends a confirmation PIN to the shop owner before the assisted order is finalized.',
+              'Select products for ${shopName.trim().isEmpty ? 'this outlet' : shopName}. Shop-owner-created outlets receive a confirmation PIN; sales-rep-created outlets are saved without PIN.',
           icon: Icons.storefront_outlined,
           accentColor: AppTheme.primaryBrown,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isLoadingLastOrder || !hasLastOrder
+                ? null
+                : onFillWithLastOrder,
+            icon: isLoadingLastOrder
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.history_rounded),
+            label: Text(
+              hasLastOrder ? 'Fill with Last Order' : 'No Last Order Found',
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.proceedOrderOlive,
+              disabledBackgroundColor: AppTheme.proceedOrderOlive.withValues(
+                alpha: 0.35,
+              ),
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         ...products.map((product) {
@@ -332,6 +582,21 @@ class _ProductSelectionView extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                Container(
+                  width: 58,
+                  height: 58,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.kCream,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.outlineWarm),
+                  ),
+                  child: ProductImageBox(
+                    imageSource: product.imageUrl,
+                    fallbackLabel: product.badgeLabel,
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

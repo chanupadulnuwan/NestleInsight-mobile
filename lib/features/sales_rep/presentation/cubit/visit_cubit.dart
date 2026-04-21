@@ -84,10 +84,9 @@ class VisitCubit extends Cubit<VisitState> {
     try {
       final result = await _visitService.completeVisit(
         visitId: visitId,
-        shelfStock: shelfStock,
-        backroomStock: backroomStock,
-        osaIssues: osaIssues,
-        promotions: promotions,
+        stockItems: _normalizeStockItems(shelfStock, backroomStock),
+        osaIssues: _normalizeListMap(osaIssues),
+        promotionChecks: _normalizeListMap(promotions),
         planogramOk: planogramOk,
         posmOk: posmOk,
         feedback: feedback,
@@ -118,4 +117,54 @@ class VisitCubit extends Cubit<VisitState> {
       return false;
     }
   }
+}
+
+List<Map<String, dynamic>>? _normalizeListMap(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is List) {
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+  if (value is Map) {
+    return [Map<String, dynamic>.from(value)];
+  }
+  return null;
+}
+
+List<Map<String, dynamic>>? _normalizeStockItems(
+  dynamic shelfStock,
+  dynamic backroomStock,
+) {
+  final stockItems = _normalizeListMap(shelfStock);
+  if (stockItems != null) {
+    return stockItems;
+  }
+
+  final shelfMap = shelfStock is Map
+      ? Map<String, dynamic>.from(shelfStock)
+      : null;
+  final backroomMap = backroomStock is Map
+      ? Map<String, dynamic>.from(backroomStock)
+      : null;
+  if (shelfMap == null && backroomMap == null) {
+    return null;
+  }
+
+  final productIds = <String>{
+    ...?shelfMap?.keys.map((key) => key.toString()),
+    ...?backroomMap?.keys.map((key) => key.toString()),
+  };
+  return productIds
+      .map(
+        (productId) => <String, dynamic>{
+          'productId': productId,
+          'shelfCount': shelfMap?[productId] ?? 0,
+          'backroomCount': backroomMap?[productId] ?? 0,
+        },
+      )
+      .toList(growable: false);
 }

@@ -27,9 +27,10 @@ class HomeCubit extends Cubit<HomeState> {
 
     final firstName = userData['firstName']?.toString().trim();
     final lastName = userData['lastName']?.toString().trim();
-    final combined = [firstName, lastName]
-        .where((value) => value != null && value.isNotEmpty)
-        .join(' ');
+    final combined = [
+      firstName,
+      lastName,
+    ].where((value) => value != null && value.isNotEmpty).join(' ');
     if (combined.isNotEmpty) {
       return combined;
     }
@@ -118,6 +119,42 @@ class HomeCubit extends Cubit<HomeState> {
     return null;
   }
 
+  Map<String, dynamic>? _readRoute(dynamic payload) {
+    if (payload is! Map) {
+      return null;
+    }
+
+    final root = Map<String, dynamic>.from(payload);
+    final route = root['route'];
+    if (route is Map) {
+      return Map<String, dynamic>.from(route);
+    }
+
+    return null;
+  }
+
+  int _readShopsLeftFromRoute(Map<String, dynamic>? route) {
+    if (route == null) {
+      return 0;
+    }
+
+    final rawBeatPlanItems = route['beatPlanItems'];
+    if (rawBeatPlanItems is! List) {
+      return 0;
+    }
+
+    return rawBeatPlanItems.where((item) {
+      if (item is! Map) {
+        return false;
+      }
+
+      final beatPlanItem = Map<String, dynamic>.from(item);
+      final isSelected = beatPlanItem['isSelected'] == true;
+      final visitStatus = beatPlanItem['visitStatus']?.toString().toUpperCase();
+      return isSelected && visitStatus != 'COMPLETED';
+    }).length;
+  }
+
   Future<void> loadHomeData() async {
     emit(HomeLoading());
     try {
@@ -134,6 +171,8 @@ class HomeCubit extends Cubit<HomeState> {
       String? territoryId;
       String? activeTerritoryId;
       String? activeRouteId;
+      String? reportableTerritoryId;
+      String? reportableRouteId;
 
       // 1. Fetch User Data for Name & Territory
       try {
@@ -150,58 +189,52 @@ class HomeCubit extends Cubit<HomeState> {
         // Fallback already set
       }
 
-      // 2. Shops Left
-      try {
-        final resBeat = await dio.get('/outlets/beat-plan/today');
-        final List items = resBeat.data['data'] ?? [];
-        shopsLeft = items.where((item) => item['status'] != 'COMPLETED').length;
-      } catch (e) {
-        shopsLeft = 0;
-      }
-
-      // 3. Route Status
+      // 2. Route Status + Today's Beat Plan
       try {
         final resRoute = await dio.get('/sales-routes/my');
-        final routeData = resRoute.data ?? {};
-        final actualRoute = routeData['route'] ?? {};
+        final actualRoute = _readRoute(resRoute.data);
 
-        final status = actualRoute['status']?.toString().toUpperCase();
+        final status = actualRoute?['status']?.toString().toUpperCase();
         hasActiveRoute = status == 'ACTIVE' || status == 'IN_PROGRESS';
-        activeRouteId = actualRoute['id']?.toString();
-        activeTerritoryId = actualRoute['territoryId']?.toString();
-        hasReportableRoute = activeRouteId != null && activeRouteId.isNotEmpty;
+        if (hasActiveRoute) {
+          activeRouteId = actualRoute?['id']?.toString();
+          activeTerritoryId = actualRoute?['territoryId']?.toString();
+          shopsLeft = _readShopsLeftFromRoute(actualRoute);
+        }
 
-        if (!hasReportableRoute) {
-          final latestRouteRes = await dio.get('/sales-routes/my/latest');
-          final latestRouteData = latestRouteRes.data ?? {};
-          final latestRoute = latestRouteData['route'] ?? {};
-
-          final latestRouteId = latestRoute['id']?.toString();
-          if (latestRouteId != null && latestRouteId.isNotEmpty) {
-            activeRouteId = latestRouteId;
-            activeTerritoryId =
-                latestRoute['territoryId']?.toString() ?? activeTerritoryId;
-            hasReportableRoute = true;
-          }
+        final latestRouteRes = await dio.get('/sales-routes/my/latest');
+        final latestRoute = _readRoute(latestRouteRes.data);
+        final latestStatus = latestRoute?['status']?.toString().toUpperCase();
+        final latestRouteId = latestRoute?['id']?.toString();
+        if (latestStatus == 'CLOSED' &&
+            latestRouteId != null &&
+            latestRouteId.isNotEmpty) {
+          reportableRouteId = latestRouteId;
+          reportableTerritoryId = latestRoute?['territoryId']?.toString();
+          hasReportableRoute = true;
         }
       } catch (e) {
         hasActiveRoute = false;
       }
 
-      emit(HomeLoaded(
-        firstName: firstName,
-        fullName: fullName,
-        username: username,
-        email: email,
-        mobileNumber: mobileNumber,
-        territoryName: territoryName,
-        territoryId: territoryId,
-        shopsLeft: shopsLeft,
-        hasActiveRoute: hasActiveRoute,
-        hasReportableRoute: hasReportableRoute,
-        activeRouteId: activeRouteId,
-        activeTerritoryId: activeTerritoryId,
-      ));
+      emit(
+        HomeLoaded(
+          firstName: firstName,
+          fullName: fullName,
+          username: username,
+          email: email,
+          mobileNumber: mobileNumber,
+          territoryName: territoryName,
+          territoryId: territoryId,
+          shopsLeft: shopsLeft,
+          hasActiveRoute: hasActiveRoute,
+          hasReportableRoute: hasReportableRoute,
+          activeRouteId: activeRouteId,
+          activeTerritoryId: activeTerritoryId,
+          reportableRouteId: reportableRouteId,
+          reportableTerritoryId: reportableTerritoryId,
+        ),
+      );
     } catch (e) {
       emit(HomeError(e.toString()));
     }

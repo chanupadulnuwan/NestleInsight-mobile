@@ -37,6 +37,49 @@ class StockLine {
   }
 }
 
+class RouteReturnItem {
+  const RouteReturnItem({
+    required this.productId,
+    required this.productName,
+    required this.quantityCases,
+    required this.quantityUnits,
+    required this.reason,
+    required this.unitType,
+    required this.notes,
+    required this.loggedAt,
+  });
+
+  final String productId;
+  final String productName;
+  final int quantityCases;
+  final int quantityUnits;
+  final String reason;
+  final String unitType;
+  final String? notes;
+  final DateTime? loggedAt;
+
+  factory RouteReturnItem.fromJson(Map<String, dynamic> json) {
+    final notes = _nullableString(json['notes']);
+    final legacyUnitQuantity = _readLegacyUnitQuantity(notes);
+    final rawQuantityUnits = _toInt(json['quantityUnits']);
+
+    return RouteReturnItem(
+      productId: (json['productId'] ?? '').toString(),
+      productName: (json['productName'] ?? '').toString(),
+      quantityCases: legacyUnitQuantity != null
+          ? 0
+          : _toInt(json['quantityCases']),
+      quantityUnits: rawQuantityUnits > 0
+          ? rawQuantityUnits
+          : legacyUnitQuantity ?? 0,
+      reason: (json['reason'] ?? '').toString(),
+      unitType: (json['unitType'] ?? '').toString(),
+      notes: notes,
+      loggedAt: _nullableDateTime(json['loggedAt']),
+    );
+  }
+}
+
 class BeatPlanItem {
   const BeatPlanItem({
     required this.id,
@@ -48,6 +91,7 @@ class BeatPlanItem {
     required this.hasPendingDelivery,
     required this.pendingDeliveryCount,
     required this.orderIds,
+    required this.visitStatus,
   });
 
   final String id;
@@ -59,6 +103,7 @@ class BeatPlanItem {
   final bool hasPendingDelivery;
   final int pendingDeliveryCount;
   final List<String> orderIds;
+  final String visitStatus;
 
   factory BeatPlanItem.fromJson(Map<String, dynamic> json) {
     return BeatPlanItem(
@@ -71,6 +116,7 @@ class BeatPlanItem {
       hasPendingDelivery: json['hasPendingDelivery'] == true,
       pendingDeliveryCount: _toInt(json['pendingDeliveryCount']),
       orderIds: _toStringList(json['orderIds']),
+      visitStatus: (json['visitStatus'] ?? 'PENDING').toString(),
     );
   }
 }
@@ -80,17 +126,23 @@ class RouteOutletOption {
     required this.id,
     required this.outletName,
     required this.ownerName,
+    required this.shopOwnerUserId,
+    required this.source,
   });
 
   final String id;
   final String outletName;
   final String? ownerName;
+  final String? shopOwnerUserId;
+  final String source;
 
   factory RouteOutletOption.fromJson(Map<String, dynamic> json) {
     return RouteOutletOption(
       id: (json['id'] ?? '').toString(),
       outletName: (json['outletName'] ?? '').toString(),
       ownerName: json['ownerName']?.toString(),
+      shopOwnerUserId: _nullableString(json['shopOwnerUserId']),
+      source: (json['source'] ?? 'MANUAL').toString(),
     );
   }
 }
@@ -193,9 +245,12 @@ class SalesRoute {
     required this.startedAt,
     required this.closedAt,
     required this.routeStartPinExpiresAt,
+    required this.returnItems,
     required this.deliveryOrderIds,
     required this.beatPlanItems,
     required this.availableOutlets,
+    required this.allWarehouseOutlets,
+    required this.warehouseShopOutlets,
     required this.deliveryAlerts,
     required this.deliveryApproval,
     required this.vanLoadRequest,
@@ -211,9 +266,12 @@ class SalesRoute {
   final DateTime? startedAt;
   final DateTime? closedAt;
   final DateTime? routeStartPinExpiresAt;
+  final List<RouteReturnItem> returnItems;
   final List<String> deliveryOrderIds;
   final List<BeatPlanItem> beatPlanItems;
   final List<RouteOutletOption> availableOutlets;
+  final List<RouteOutletOption> allWarehouseOutlets;
+  final List<RouteOutletOption> warehouseShopOutlets;
   final List<DeliveryAlert> deliveryAlerts;
   final DeliveryApprovalSummary? deliveryApproval;
   final VanLoadRequest? vanLoadRequest;
@@ -221,9 +279,12 @@ class SalesRoute {
   factory SalesRoute.fromJson(Map<String, dynamic> json) {
     final rawBeatPlanItems = json['beatPlanItems'];
     final rawAvailableOutlets = json['availableOutlets'];
+    final rawAllWarehouseOutlets = json['allWarehouseOutlets'];
+    final rawWarehouseShopOutlets = json['warehouseShopOutlets'];
     final rawDeliveryAlerts = json['deliveryAlerts'];
     final rawDeliveryApproval = json['deliveryApproval'];
     final rawVanLoadRequest = json['vanLoadRequest'];
+    final rawReturnItems = json['returnItems'] ?? json['returnItemsJson'];
 
     return SalesRoute(
       id: (json['id'] ?? '').toString(),
@@ -236,14 +297,22 @@ class SalesRoute {
       startedAt: _nullableDateTime(json['startedAt']),
       closedAt: _nullableDateTime(json['closedAt']),
       routeStartPinExpiresAt: _nullableDateTime(json['routeStartPinExpiresAt']),
+      returnItems: rawReturnItems is List
+          ? rawReturnItems
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      RouteReturnItem.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList()
+          : const [],
       deliveryOrderIds: _toStringList(json['deliveryOrderIds']),
       beatPlanItems: rawBeatPlanItems is List
           ? rawBeatPlanItems
                 .whereType<Map>()
                 .map(
-                  (item) => BeatPlanItem.fromJson(
-                    Map<String, dynamic>.from(item),
-                  ),
+                  (item) =>
+                      BeatPlanItem.fromJson(Map<String, dynamic>.from(item)),
                 )
                 .toList()
           : const [],
@@ -257,13 +326,32 @@ class SalesRoute {
                 )
                 .toList()
           : const [],
+      allWarehouseOutlets: rawAllWarehouseOutlets is List
+          ? rawAllWarehouseOutlets
+                .whereType<Map>()
+                .map(
+                  (item) => RouteOutletOption.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+      warehouseShopOutlets: rawWarehouseShopOutlets is List
+          ? rawWarehouseShopOutlets
+                .whereType<Map>()
+                .map(
+                  (item) => RouteOutletOption.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
       deliveryAlerts: rawDeliveryAlerts is List
           ? rawDeliveryAlerts
                 .whereType<Map>()
                 .map(
-                  (item) => DeliveryAlert.fromJson(
-                    Map<String, dynamic>.from(item),
-                  ),
+                  (item) =>
+                      DeliveryAlert.fromJson(Map<String, dynamic>.from(item)),
                 )
                 .toList()
           : const [],
@@ -273,7 +361,9 @@ class SalesRoute {
             )
           : null,
       vanLoadRequest: rawVanLoadRequest is Map
-          ? VanLoadRequest.fromJson(Map<String, dynamic>.from(rawVanLoadRequest))
+          ? VanLoadRequest.fromJson(
+              Map<String, dynamic>.from(rawVanLoadRequest),
+            )
           : null,
     );
   }
@@ -307,20 +397,29 @@ class ReturnItemInput {
     required this.productId,
     required this.productName,
     required this.quantityCases,
+    required this.quantityUnits,
+    required this.unitType,
     required this.reason,
+    this.notes,
   });
 
   final String productId;
   final String productName;
   final int quantityCases;
+  final int quantityUnits;
+  final String unitType;
   final String reason;
+  final String? notes;
 
   Map<String, dynamic> toJson() {
     return {
       'productId': productId,
       'productName': productName,
       'quantityCases': quantityCases,
+      'quantityUnits': quantityUnits,
+      'unitType': unitType,
       'reason': reason,
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
     };
   }
 }
@@ -333,11 +432,7 @@ class RouteActionResponse {
 }
 
 class PinActionResponse {
-  const PinActionResponse({
-    required this.message,
-    this.pin,
-    this.pinExpiresAt,
-  });
+  const PinActionResponse({required this.message, this.pin, this.pinExpiresAt});
 
   final String message;
   final String? pin;
@@ -377,10 +472,7 @@ class RouteService {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/sales-routes',
-        data: {
-          'warehouseId': warehouseId,
-          'vehicleId': vehicleId,
-        },
+        data: {'warehouseId': warehouseId, 'vehicleId': vehicleId},
       );
       final data = response.data ?? {};
       final rawRoute = data['route'];
@@ -406,19 +498,22 @@ class RouteService {
   Future<RouteActionResponse> updateBeatPlan({
     required String routeId,
     required List<String> selectedOutletIds,
+    required List<String> selectedShopOwnerIds,
   }) async {
     try {
       final response = await _dio.patch<Map<String, dynamic>>(
         '/sales-routes/$routeId/beat-plan',
         data: {
           'selectedOutletIds': selectedOutletIds,
+          'selectedShopOwnerIds': selectedShopOwnerIds,
           'saveTemplate': true,
         },
       );
       final data = response.data ?? {};
       final rawRoute = data['route'];
       return RouteActionResponse(
-        message: data['message'] as String? ?? 'Best plan updated successfully.',
+        message:
+            data['message'] as String? ?? 'Beat plan updated successfully.',
         route: rawRoute is Map
             ? SalesRoute.fromJson(Map<String, dynamic>.from(rawRoute))
             : null,
@@ -427,7 +522,7 @@ class RouteService {
       throw RouteServiceException(
         extractBackendErrorMessage(
           error,
-          fallbackMessage: 'Unable to update the best plan.',
+          fallbackMessage: 'Unable to update the beat plan.',
         ),
         code: extractBackendErrorCode(error),
       );
@@ -441,9 +536,7 @@ class RouteService {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/sales-routes/$routeId/delivery-approval-request',
-        data: {
-          'orderIds': orderIds,
-        },
+        data: {'orderIds': orderIds},
       );
       final data = response.data ?? {};
       return PinActionResponse(
@@ -547,6 +640,48 @@ class RouteService {
     }
   }
 
+  Future<RouteActionResponse> cancelRoute({required String routeId}) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/sales-routes/$routeId/cancel',
+      );
+      final data = response.data ?? {};
+      return RouteActionResponse(
+        message: data['message'] as String? ?? 'Route cancelled.',
+      );
+    } on DioException catch (error) {
+      throw RouteServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to cancel route.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
+  Future<RouteActionResponse> requestPinRefresh({
+    required String routeId,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/sales-routes/$routeId/request-pin-refresh',
+      );
+      final data = response.data ?? {};
+      return RouteActionResponse(
+        message: data['message'] as String? ?? 'PIN refresh requested.',
+      );
+    } on DioException catch (error) {
+      throw RouteServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to request PIN refresh.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
   Future<RouteActionResponse> closeRoute({
     required String routeId,
     required String pin,
@@ -633,4 +768,20 @@ int _toInt(dynamic value) {
     return value.round();
   }
   return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _readLegacyUnitQuantity(String? notes) {
+  if (notes == null || notes.isEmpty) {
+    return null;
+  }
+
+  final match = RegExp(
+    r'Entered as product units:\s*(\d+)',
+    caseSensitive: false,
+  ).firstMatch(notes);
+  if (match == null) {
+    return null;
+  }
+
+  return int.tryParse(match.group(1) ?? '');
 }

@@ -16,7 +16,9 @@ class OrderCreateResult {
 
   factory OrderCreateResult.fromJson(Map<String, dynamic> json) {
     final rawOrder = json['order'];
-    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+    final orderMap = rawOrder is Map
+        ? Map<String, dynamic>.from(rawOrder)
+        : null;
 
     return OrderCreateResult(
       message: json['message'] as String? ?? 'Order completed.',
@@ -36,7 +38,9 @@ class OrderListResult {
     final orders = rawOrders is List
         ? rawOrders
               .whereType<Map>()
-              .map((order) => ShopOrder.fromJson(Map<String, dynamic>.from(order)))
+              .map(
+                (order) => ShopOrder.fromJson(Map<String, dynamic>.from(order)),
+              )
               .toList()
         : const <ShopOrder>[];
 
@@ -55,7 +59,9 @@ class LatestOrderResult {
 
   factory LatestOrderResult.fromJson(Map<String, dynamic> json) {
     final rawOrder = json['order'];
-    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+    final orderMap = rawOrder is Map
+        ? Map<String, dynamic>.from(rawOrder)
+        : null;
 
     return LatestOrderResult(
       message: json['message'] as String? ?? 'Latest order loaded.',
@@ -70,6 +76,7 @@ class LatestOrderResult {
 class AssistedOrderRequestResult {
   const AssistedOrderRequestResult({
     required this.orderId,
+    required this.orderCode,
     required this.status,
     required this.message,
     required this.requiresPin,
@@ -77,7 +84,9 @@ class AssistedOrderRequestResult {
 
   factory AssistedOrderRequestResult.fromJson(Map<String, dynamic> json) {
     final rawOrder = json['order'];
-    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+    final orderMap = rawOrder is Map
+        ? Map<String, dynamic>.from(rawOrder)
+        : null;
     final orderId =
         json['orderId']?.toString() ??
         orderMap?['id']?.toString() ??
@@ -88,6 +97,7 @@ class AssistedOrderRequestResult {
 
     return AssistedOrderRequestResult(
       orderId: orderId,
+      orderCode: orderMap?['orderCode']?.toString() ?? '',
       status: status,
       message:
           json['message'] as String? ??
@@ -101,6 +111,7 @@ class AssistedOrderRequestResult {
   }
 
   final String orderId;
+  final String orderCode;
   final String status;
   final String message;
   final bool requiresPin;
@@ -115,25 +126,87 @@ class AssistedOrderConfirmationResult {
 
   factory AssistedOrderConfirmationResult.fromJson(Map<String, dynamic> json) {
     final rawOrder = json['order'];
-    final orderMap = rawOrder is Map ? Map<String, dynamic>.from(rawOrder) : null;
+    final orderMap = rawOrder is Map
+        ? Map<String, dynamic>.from(rawOrder)
+        : null;
 
     return AssistedOrderConfirmationResult(
-      orderId:
-          json['orderId']?.toString() ??
-          orderMap?['id']?.toString() ??
-          '',
+      orderId: json['orderId']?.toString() ?? orderMap?['id']?.toString() ?? '',
       orderCode:
           json['orderCode']?.toString() ??
           orderMap?['orderCode']?.toString() ??
           '',
       message:
-          json['message'] as String? ?? 'Assisted order confirmed successfully.',
+          json['message'] as String? ??
+          'Assisted order confirmed successfully.',
     );
   }
 
   final String orderId;
   final String orderCode;
   final String message;
+}
+
+class ImmediateDeliveryItem {
+  const ImmediateDeliveryItem({
+    required this.productId,
+    required this.productName,
+    required this.requestedCases,
+    required this.deliveredCases,
+    required this.pendingCases,
+  });
+
+  factory ImmediateDeliveryItem.fromJson(Map<String, dynamic> json) {
+    return ImmediateDeliveryItem(
+      productId: json['productId']?.toString() ?? '',
+      productName: json['productName']?.toString() ?? 'Product',
+      requestedCases: _readInt(json['requestedCases']),
+      deliveredCases: _readInt(json['deliveredCases']),
+      pendingCases: _readInt(json['pendingCases']),
+    );
+  }
+
+  final String productId;
+  final String productName;
+  final int requestedCases;
+  final int deliveredCases;
+  final int pendingCases;
+}
+
+class ImmediateDeliveryResult {
+  const ImmediateDeliveryResult({
+    required this.message,
+    required this.outcome,
+    required this.deliveredItems,
+    required this.pendingItems,
+    this.backorderCode,
+  });
+
+  factory ImmediateDeliveryResult.fromJson(Map<String, dynamic> json) {
+    final rawDelivery = json['delivery'];
+    final delivery = rawDelivery is Map
+        ? Map<String, dynamic>.from(rawDelivery)
+        : <String, dynamic>{};
+    final rawBackorder = delivery['backorder'];
+    final backorder = rawBackorder is Map
+        ? Map<String, dynamic>.from(rawBackorder)
+        : null;
+
+    return ImmediateDeliveryResult(
+      message: json['message'] as String? ?? 'Delivery completed.',
+      outcome:
+          delivery['outcome']?.toString() ?? json['status']?.toString() ?? '',
+      deliveredItems: _mapImmediateDeliveryItems(delivery['deliveredItems']),
+      pendingItems: _mapImmediateDeliveryItems(delivery['pendingItems']),
+      backorderCode: backorder?['orderCode']?.toString(),
+    );
+  }
+
+  final String message;
+  final String outcome;
+  final List<ImmediateDeliveryItem> deliveredItems;
+  final List<ImmediateDeliveryItem> pendingItems;
+  final String? backorderCode;
 }
 
 class OrderService {
@@ -208,13 +281,15 @@ class OrderService {
   }
 
   Future<AssistedOrderRequestResult> requestAssistedOrderResult(
+    String routeId,
     String shopId,
     List<ShopCartItem> items,
   ) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/orders/rep-request',
+        '/orders/sales-rep/request-pin',
         data: <String, dynamic>{
+          'routeId': routeId,
           'shopId': shopId,
           'items': items
               .map(
@@ -242,10 +317,11 @@ class OrderService {
   }
 
   Future<String> requestAssistedOrder(
+    String routeId,
     String shopId,
     List<ShopCartItem> items,
   ) async {
-    final result = await requestAssistedOrderResult(shopId, items);
+    final result = await requestAssistedOrderResult(routeId, shopId, items);
     return result.orderId;
   }
 
@@ -256,12 +332,8 @@ class OrderService {
   ) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/orders/rep-confirm',
-        data: <String, dynamic>{
-          'orderId': orderId,
-          'pin': pin,
-          'assistedReason': reason,
-        },
+        '/orders/sales-rep/$orderId/confirm-pin',
+        data: <String, dynamic>{'pin': pin, 'assistedReason': reason},
       );
 
       return AssistedOrderConfirmationResult.fromJson(
@@ -285,4 +357,100 @@ class OrderService {
   ) async {
     await confirmAssistedOrderResult(orderId, pin, reason);
   }
+
+  Future<ImmediateDeliveryResult> completeImmediateSalesRepDelivery({
+    required String orderId,
+    required String routeId,
+    required String confirmationNote,
+    DateTime? nextDeliveryDate,
+  }) async {
+    final payload = <String, dynamic>{
+      'orderId': orderId,
+      'routeId': routeId,
+      'confirmationNote': confirmationNote,
+      if (nextDeliveryDate != null)
+        'nextDeliveryDate': nextDeliveryDate.toIso8601String(),
+    };
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/orders/sales-rep/deliver-now',
+        data: payload,
+      );
+
+      return ImmediateDeliveryResult.fromJson(
+        response.data ?? <String, dynamic>{},
+      );
+    } on DioException catch (error) {
+      if (_isMissingDeliveryEndpoint(error)) {
+        try {
+          final retryResponse = await _dio.post<Map<String, dynamic>>(
+            '/orders/sales-rep/$orderId/deliver-now',
+            data: payload,
+          );
+          return ImmediateDeliveryResult.fromJson(
+            retryResponse.data ?? <String, dynamic>{},
+          );
+        } on DioException catch (retryError) {
+          if (_isMissingDeliveryEndpoint(retryError)) {
+            throw const OrderServiceException(
+              'The delivery completion API is not active on this server yet. The order has already been submitted for TM approval.',
+              code: 'DELIVERY_ENDPOINT_UNAVAILABLE',
+            );
+          }
+          throw OrderServiceException(
+            extractBackendErrorMessage(
+              retryError,
+              fallbackMessage: 'Unable to complete the delivery right now.',
+            ),
+            code: extractBackendErrorCode(retryError),
+          );
+        }
+      }
+
+      throw OrderServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to complete the delivery right now.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+}
+
+bool _isMissingDeliveryEndpoint(DioException error) {
+  final statusCode = error.response?.statusCode;
+  final rawData = error.response?.data;
+  final message = rawData is Map
+      ? rawData['message']?.toString() ?? ''
+      : rawData?.toString() ?? '';
+
+  return statusCode == 404 &&
+      message.toLowerCase().contains('cannot post') &&
+      message.toLowerCase().contains('deliver-now');
+}
+
+List<ImmediateDeliveryItem> _mapImmediateDeliveryItems(dynamic raw) {
+  if (raw is! List) {
+    return const <ImmediateDeliveryItem>[];
+  }
+
+  return raw
+      .whereType<Map>()
+      .map(
+        (item) =>
+            ImmediateDeliveryItem.fromJson(Map<String, dynamic>.from(item)),
+      )
+      .toList(growable: false);
+}
+
+int _readInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }

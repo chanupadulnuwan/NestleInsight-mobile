@@ -28,8 +28,8 @@ class RouteActionSuccess extends RouteState {
 
 class RouteCubit extends Cubit<RouteState> {
   RouteCubit({RouteService? routeService})
-      : _routeService = routeService ?? RouteService(),
-        super(RouteInitial());
+    : _routeService = routeService ?? RouteService(),
+      super(RouteInitial());
 
   final RouteService _routeService;
 
@@ -82,6 +82,7 @@ class RouteCubit extends Cubit<RouteState> {
   Future<bool> updateBeatPlan({
     required String routeId,
     required List<String> selectedOutletIds,
+    required List<String> selectedShopOwnerIds,
   }) async {
     final previousRoute = currentRoute;
     emit(RouteLoading());
@@ -90,6 +91,7 @@ class RouteCubit extends Cubit<RouteState> {
       final result = await _routeService.updateBeatPlan(
         routeId: routeId,
         selectedOutletIds: selectedOutletIds,
+        selectedShopOwnerIds: selectedShopOwnerIds,
       );
       final nextRoute = result.route ?? await _routeService.fetchMyRoute();
       emit(RouteActionSuccess(result.message, nextRoute));
@@ -173,10 +175,7 @@ class RouteCubit extends Cubit<RouteState> {
     }
   }
 
-  Future<bool> enterPin({
-    required String routeId,
-    required String pin,
-  }) async {
+  Future<bool> enterPin({required String routeId, required String pin}) async {
     final previousRoute = currentRoute;
     emit(RouteLoading());
 
@@ -188,6 +187,36 @@ class RouteCubit extends Cubit<RouteState> {
       final nextRoute = result.route ?? await _routeService.fetchMyRoute();
       emit(RouteActionSuccess(result.message, nextRoute));
       emit(RouteLoaded(nextRoute));
+      return true;
+    } on RouteServiceException catch (error) {
+      emit(RouteError(error.message));
+      emit(RouteLoaded(previousRoute));
+      return false;
+    }
+  }
+
+  Future<bool> cancelRoute({required String routeId}) async {
+    emit(RouteLoading());
+    try {
+      final result = await _routeService.cancelRoute(routeId: routeId);
+      emit(RouteActionSuccess(result.message, null));
+      emit(RouteLoaded(null));
+      return true;
+    } on RouteServiceException catch (error) {
+      emit(RouteError(error.message));
+      emit(RouteLoaded(currentRoute));
+      return false;
+    }
+  }
+
+  Future<bool> requestPinRefresh({required String routeId}) async {
+    final previousRoute = currentRoute;
+    emit(RouteLoading());
+    try {
+      final result = await _routeService.requestPinRefresh(routeId: routeId);
+      final refreshedRoute = await _routeService.fetchMyRoute();
+      emit(RouteActionSuccess(result.message, refreshedRoute));
+      emit(RouteLoaded(refreshedRoute));
       return true;
     } on RouteServiceException catch (error) {
       emit(RouteError(error.message));

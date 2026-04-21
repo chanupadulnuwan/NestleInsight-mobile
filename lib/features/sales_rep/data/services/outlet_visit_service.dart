@@ -8,24 +8,70 @@ class TerritoryOutlet {
   final String? address;
   final double? latitude;
   final double? longitude;
+  final bool isBeatPlanOutlet;
+  final bool hasPendingDelivery;
+  final int pendingDeliveryCount;
+  final List<String> pendingDeliveryOrderIds;
 
-  TerritoryOutlet({
+  const TerritoryOutlet({
     required this.id,
     required this.outletName,
     required this.ownerName,
     this.address,
     this.latitude,
     this.longitude,
+    this.isBeatPlanOutlet = false,
+    this.hasPendingDelivery = false,
+    this.pendingDeliveryCount = 0,
+    this.pendingDeliveryOrderIds = const [],
   });
+
+  TerritoryOutlet copyWith({
+    String? outletName,
+    String? ownerName,
+    String? address,
+    double? latitude,
+    double? longitude,
+    bool? isBeatPlanOutlet,
+    bool? hasPendingDelivery,
+    int? pendingDeliveryCount,
+    List<String>? pendingDeliveryOrderIds,
+  }) {
+    return TerritoryOutlet(
+      id: id,
+      outletName: outletName ?? this.outletName,
+      ownerName: ownerName ?? this.ownerName,
+      address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isBeatPlanOutlet: isBeatPlanOutlet ?? this.isBeatPlanOutlet,
+      hasPendingDelivery: hasPendingDelivery ?? this.hasPendingDelivery,
+      pendingDeliveryCount: pendingDeliveryCount ?? this.pendingDeliveryCount,
+      pendingDeliveryOrderIds:
+          pendingDeliveryOrderIds ?? this.pendingDeliveryOrderIds,
+    );
+  }
 
   factory TerritoryOutlet.fromJson(Map<String, dynamic> json) {
     return TerritoryOutlet(
-      id: json['id'],
-      outletName: json['outletName'],
-      ownerName: json['ownerName'],
-      address: json['address'],
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
+      id: (json['id'] ?? '').toString(),
+      outletName: (json['outletName'] ?? '').toString(),
+      ownerName: (json['ownerName'] ?? '').toString(),
+      address: json['address']?.toString(),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      isBeatPlanOutlet: json['isBeatPlanOutlet'] == true,
+      hasPendingDelivery: json['hasPendingDelivery'] == true,
+      pendingDeliveryCount: json['pendingDeliveryCount'] is num
+          ? (json['pendingDeliveryCount'] as num).toInt()
+          : 0,
+      pendingDeliveryOrderIds:
+          (json['pendingDeliveryOrderIds'] as List?)
+              ?.map((item) => item?.toString())
+              .whereType<String>()
+              .where((item) => item.isNotEmpty)
+              .toList() ??
+          const [],
     );
   }
 }
@@ -60,10 +106,10 @@ class OutletContext {
   }
 
   static OutletContext empty() => const OutletContext(
-        orderCountSinceLastVisit: 0,
-        recentOrders: [],
-        productQuantities: {},
-      );
+    orderCountSinceLastVisit: 0,
+    recentOrders: [],
+    productQuantities: {},
+  );
 }
 
 class OutletVisitServiceException implements Exception {
@@ -85,7 +131,9 @@ class OutletVisitService {
       return list.map((json) => TerritoryOutlet.fromJson(json)).toList();
     } on DioException catch (e) {
       throw OutletVisitServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching outlets',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error fetching outlets',
       );
     } catch (e) {
       throw OutletVisitServiceException('Failed to process outlets data: $e');
@@ -96,7 +144,7 @@ class OutletVisitService {
     try {
       final response = await _dio.get('/store-visits/outlet-context/$outletId');
       return OutletContext.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
+    } on DioException {
       // Non-fatal — return empty context so visit can still proceed
       return OutletContext.empty();
     } catch (_) {
