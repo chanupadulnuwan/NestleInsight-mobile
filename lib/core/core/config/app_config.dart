@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
+  static const _productionApiBaseUrl = 'http://206.189.144.128:3000';
+  static const _androidEmulatorApiBaseUrl = 'http://10.0.2.2:3000';
+  static const _localApiBaseUrl = 'http://localhost:3000';
   static const _apiBaseUrlOverride = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',
@@ -11,16 +14,15 @@ class AppConfig {
       return _apiBaseUrlOverride;
     }
 
-    if (kIsWeb) {
-      return 'http://localhost:3000';
+    if (!kReleaseMode) {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        return _androidEmulatorApiBaseUrl;
+      }
+
+      return _localApiBaseUrl;
     }
 
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'http://localhost:3000';
-      default:
-        return 'http://localhost:3000';
-    }
+    return _productionApiBaseUrl;
   }
 
   static String resolveApiUrl(String? value) {

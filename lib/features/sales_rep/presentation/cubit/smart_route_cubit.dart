@@ -15,6 +15,8 @@ class SmartRouteLoaded extends SmartRouteState {
     required this.progress,
     required this.rankedOutlets,
     this.currentStop,
+    this.currentLatitude,
+    this.currentLongitude,
     required this.isAllDone,
   });
 
@@ -22,6 +24,8 @@ class SmartRouteLoaded extends SmartRouteState {
   final SmartRouteProgress progress;
   final List<SmartRouteRankedOutlet> rankedOutlets;
   final SmartRouteStop? currentStop;
+  final double? currentLatitude;
+  final double? currentLongitude;
   final bool isAllDone;
 }
 
@@ -51,6 +55,7 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
   SmartRouteCubit() : super(SmartRouteInitial());
 
   final SmartRouteService _service = SmartRouteService();
+  String? _routeId;
 
   Future<(double, double)?> _getCurrentLocation() async {
     bool serviceEnabled;
@@ -81,7 +86,8 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
     }
   }
 
-  Future<void> loadSession() async {
+  Future<void> loadSession({String? routeId}) async {
+    _routeId = routeId ?? _routeId;
     emit(SmartRouteLoading());
     try {
       await _reloadSessionAndSuggestion();
@@ -101,7 +107,9 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
     emit(SmartRouteLoading());
     try {
       final startedStop = await _service.startStop(stopId: stopId);
-      final refreshedSession = await _service.getOrCreateSession();
+      final refreshedSession = await _service.getOrCreateSession(
+        routeId: _routeId,
+      );
       final location = await _getCurrentLocation();
       final progress = await _service.getProgress(
         sessionId: refreshedSession.id,
@@ -118,6 +126,8 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
             currentLongitude: location?.$2,
           ),
           currentStop: startedStop,
+          currentLatitude: location?.$1,
+          currentLongitude: location?.$2,
           isAllDone: false,
         ),
       );
@@ -194,7 +204,7 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
   }
 
   Future<void> _reloadSessionAndSuggestion() async {
-    final session = await _service.getOrCreateSession();
+    final session = await _service.getOrCreateSession(routeId: _routeId);
     final location = await _getCurrentLocation();
     final suggestedStop = await _service.getNextStop(
       sessionId: session.id,
@@ -202,15 +212,9 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
       lng: location?.$2,
     );
     final progress = await _service.getProgress(sessionId: session.id);
-    final resolvedStop = _resolveSuggestedStop(
-      suggestedStop: suggestedStop,
-      outlets: session.assignedOutlets,
-      currentLatitude: location?.$1,
-      currentLongitude: location?.$2,
-    );
     final rankedOutlets = _rankAssignedOutlets(
       outlets: session.assignedOutlets,
-      currentStop: resolvedStop,
+      currentStop: suggestedStop,
       currentLatitude: location?.$1,
       currentLongitude: location?.$2,
     );
@@ -220,85 +224,11 @@ class SmartRouteCubit extends Cubit<SmartRouteState> {
         session: session,
         progress: progress,
         rankedOutlets: rankedOutlets,
-        currentStop: resolvedStop,
-        isAllDone: session.totalStops > 0 && resolvedStop == null,
+        currentStop: suggestedStop,
+        currentLatitude: location?.$1,
+        currentLongitude: location?.$2,
+        isAllDone: session.totalStops > 0 && suggestedStop == null,
       ),
-    );
-  }
-
-  SmartRouteStop? _resolveSuggestedStop({
-    required SmartRouteStop? suggestedStop,
-    required List<SmartRouteOutletSummary> outlets,
-    double? currentLatitude,
-    double? currentLongitude,
-  }) {
-    if (suggestedStop?.status == 'in_progress') {
-      return suggestedStop;
-    }
-
-    final pendingRankedOutlets = outlets
-        .where(
-          (outlet) =>
-              outlet.stopStatus != 'completed' && outlet.stopStatus != 'skipped',
-        )
-        .map((outlet) {
-          final distanceKm = _calculateDistanceKm(
-            currentLatitude,
-            currentLongitude,
-            outlet.latitude,
-            outlet.longitude,
-          );
-          return (
-            outlet: outlet,
-            distanceKm: distanceKm,
-            etaMinutes: _estimateEtaMinutes(distanceKm),
-          );
-        })
-        .toList(growable: false)
-      ..sort((a, b) {
-        final distanceComparison = (a.distanceKm ?? double.infinity).compareTo(
-          b.distanceKm ?? double.infinity,
-        );
-        if (distanceComparison != 0) {
-          return distanceComparison;
-        }
-
-        final etaComparison = (a.etaMinutes ?? 1 << 30).compareTo(
-          b.etaMinutes ?? 1 << 30,
-        );
-        if (etaComparison != 0) {
-          return etaComparison;
-        }
-
-        return a.outlet.suggestedSeq.compareTo(b.outlet.suggestedSeq);
-      });
-
-    if (pendingRankedOutlets.isEmpty) {
-      return suggestedStop;
-    }
-
-    final bestMatch = pendingRankedOutlets.first;
-    if (suggestedStop != null && suggestedStop.outletId == bestMatch.outlet.id) {
-      return suggestedStop.copyWith(
-        suggestedSeq: 1,
-        distanceKm: bestMatch.distanceKm,
-        etaMinutes: bestMatch.etaMinutes,
-        recommendation: 'next-best-stop',
-      );
-    }
-
-    return suggestedStop?.copyWith(
-      outletId: bestMatch.outlet.id,
-      outletName: bestMatch.outlet.outletName,
-      ownerName: bestMatch.outlet.ownerName,
-      address: bestMatch.outlet.address,
-      latitude: bestMatch.outlet.latitude,
-      longitude: bestMatch.outlet.longitude,
-      suggestedSeq: 1,
-      status: bestMatch.outlet.stopStatus,
-      distanceKm: bestMatch.distanceKm,
-      etaMinutes: bestMatch.etaMinutes,
-      recommendation: 'next-best-stop',
     );
   }
 

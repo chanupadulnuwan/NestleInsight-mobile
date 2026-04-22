@@ -8,6 +8,7 @@ import 'package:mobile/features/distributor/data/services/distributor_service.da
 import 'package:mobile/features/distributor/domain/delivery_assignment.dart';
 import 'package:mobile/features/distributor/presentation/pages/add_note_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/deliver_order_page.dart';
+import 'package:mobile/features/distributor/presentation/pages/distributor_smart_route_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/lorry_inventory_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/report_incident_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/shop_return_page.dart';
@@ -192,6 +193,22 @@ class _DistributorHomePageState extends State<DistributorHomePage>
     );
   }
 
+  Future<void> _openSmartRoutePage() async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => DistributorSmartRoutePage(assignment: _assignment),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result == true || result == null) {
+      await _loadAssignment();
+    }
+  }
+
   Future<void> _openWarehouseReturnPage() async {
     final assignment = _assignment;
     if (assignment == null || !assignment.isActive) {
@@ -334,6 +351,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
                                 greetingText: _greetingText,
                                 assignment: _assignment,
                                 onProfileTap: _openProfileSheet,
+                                onSmartRouteTap: _openSmartRoutePage,
                                 onInventoryTap: _openInventoryPage,
                                 onWarehouseReturnTap: _openWarehouseReturnPage,
                                 onDeliverTap: _openDeliverOrder,
@@ -363,6 +381,7 @@ class _TabBody extends StatelessWidget {
     required this.greetingText,
     required this.assignment,
     required this.onProfileTap,
+    required this.onSmartRouteTap,
     required this.onInventoryTap,
     required this.onWarehouseReturnTap,
     required this.onDeliverTap,
@@ -378,6 +397,7 @@ class _TabBody extends StatelessWidget {
   final String greetingText;
   final DeliveryAssignment? assignment;
   final VoidCallback onProfileTap;
+  final Future<void> Function() onSmartRouteTap;
   final Future<void> Function() onInventoryTap;
   final Future<void> Function() onWarehouseReturnTap;
   final Future<void> Function(AssignmentOrder order) onDeliverTap;
@@ -417,6 +437,7 @@ class _TabBody extends StatelessWidget {
           greetingText: greetingText,
           assignment: assignment,
           onProfileTap: onProfileTap,
+          onSmartRouteTap: onSmartRouteTap,
           onInventoryTap: onInventoryTap,
           onWarehouseReturnTap: onWarehouseReturnTap,
           onDeliverTap: onDeliverTap,
@@ -433,6 +454,7 @@ class _DistributorHomeTab extends StatelessWidget {
     required this.greetingText,
     required this.assignment,
     required this.onProfileTap,
+    required this.onSmartRouteTap,
     required this.onInventoryTap,
     required this.onWarehouseReturnTap,
     required this.onDeliverTap,
@@ -444,6 +466,7 @@ class _DistributorHomeTab extends StatelessWidget {
   final String greetingText;
   final DeliveryAssignment? assignment;
   final VoidCallback onProfileTap;
+  final Future<void> Function() onSmartRouteTap;
   final Future<void> Function() onInventoryTap;
   final Future<void> Function() onWarehouseReturnTap;
   final Future<void> Function(AssignmentOrder order) onDeliverTap;
@@ -507,6 +530,14 @@ class _DistributorHomeTab extends StatelessWidget {
           title: 'Quick actions',
           subtitle:
               'Keep the same distributor tools, but with a cleaner dashboard layout.',
+        ),
+        const SizedBox(height: 12),
+        _ActionPanel(
+          icon: Icons.alt_route,
+          title: 'Smart Route',
+          subtitle: 'Navigate assigned shops from nearest to farthest.',
+          onTap: onSmartRouteTap,
+          accentColor: AppTheme.promotionMutedRed,
         ),
         const SizedBox(height: 12),
         if (assignment != null && assignment!.isActive)

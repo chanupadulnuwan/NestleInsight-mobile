@@ -649,7 +649,7 @@ class _OutletVisitPageState extends State<OutletVisitPage> {
                 onPressed: state.nextOutlet == null
                     ? () {
                         if (smartRouteVisit) {
-                          Navigator.of(context).pop();
+                          Navigator.of(context).pop(true);
                           return;
                         }
                         Navigator.of(context).pushReplacement(

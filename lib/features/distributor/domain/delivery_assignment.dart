@@ -39,6 +39,8 @@ class AssignmentOrder {
     required this.items,
     this.shopPhone,
     this.shopAddress,
+    this.shopLatitude,
+    this.shopLongitude,
     this.currencyCode = 'LKR',
   });
 
@@ -51,6 +53,8 @@ class AssignmentOrder {
       shopName: json['shopName'] as String? ?? '—',
       shopPhone: json['shopPhone'] as String?,
       shopAddress: json['shopAddress'] as String?,
+      shopLatitude: (json['shopLatitude'] as num?)?.toDouble(),
+      shopLongitude: (json['shopLongitude'] as num?)?.toDouble(),
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'LKR',
       status: json['status'] as String? ?? 'UNKNOWN',
@@ -67,6 +71,8 @@ class AssignmentOrder {
   final String shopName;
   final String? shopPhone;
   final String? shopAddress;
+  final double? shopLatitude;
+  final double? shopLongitude;
   final double totalAmount;
   final String currencyCode;
   final String status;
@@ -106,10 +112,15 @@ class DeliveryAssignment {
       deliveryDate: json['deliveryDate'] as String? ?? '',
       status: json['status'] as String? ?? 'ACTIVE',
       notes: json['notes'] as String?,
-      orders: rawOrders
-          .map((o) => AssignmentOrder.fromJson(Map<String, dynamic>.from(o as Map)))
-          .toList()
-        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
+      orders:
+          rawOrders
+              .map(
+                (o) => AssignmentOrder.fromJson(
+                  Map<String, dynamic>.from(o as Map),
+                ),
+              )
+              .toList()
+            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
     );
   }
 
@@ -150,14 +161,16 @@ class DeliveryAssignment {
       }
     }
     return map.values
-        .map((e) => OrderItem(
-              id: e.productId ?? e.productName,
-              productId: e.productId,
-              productName: e.productName,
-              quantity: e.quantity,
-              lineTotal: e.value,
-              unitPrice: e.unitPrice,
-            ))
+        .map(
+          (e) => OrderItem(
+            id: e.productId ?? e.productName,
+            productId: e.productId,
+            productName: e.productName,
+            quantity: e.quantity,
+            lineTotal: e.value,
+            unitPrice: e.unitPrice,
+          ),
+        )
         .toList()
       ..sort((a, b) => a.productName.compareTo(b.productName));
   }
@@ -199,14 +212,14 @@ class ReturnItemInput {
   double? unitPrice;
 
   Map<String, dynamic> toJson() => {
-        if (productId != null) 'productId': productId,
-        'productNameSnapshot': productNameSnapshot,
-        'quantity': quantity,
-        'unitType': unitType,
-        'reason': reason,
-        if (reasonNote != null) 'reasonNote': reasonNote,
-        if (unitPrice != null) 'unitPrice': unitPrice,
-      };
+    if (productId != null) 'productId': productId,
+    'productNameSnapshot': productNameSnapshot,
+    'quantity': quantity,
+    'unitType': unitType,
+    'reason': reason,
+    if (reasonNote != null) 'reasonNote': reasonNote,
+    if (unitPrice != null) 'unitPrice': unitPrice,
+  };
 
   double get totalValue => (unitPrice ?? 0) * quantity;
 }

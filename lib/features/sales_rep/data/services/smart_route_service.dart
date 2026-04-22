@@ -71,8 +71,12 @@ class SmartRouteOutletSummary {
       outletName: json['outletName'],
       ownerName: json['ownerName'],
       address: json['address'],
-      latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
-      longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
+      latitude: json['latitude'] != null
+          ? double.tryParse(json['latitude'].toString())
+          : null,
+      longitude: json['longitude'] != null
+          ? double.tryParse(json['longitude'].toString())
+          : null,
       suggestedSeq: json['suggestedSeq'] ?? 0,
       stopStatus: json['stopStatus'] ?? 'pending',
     );
@@ -165,8 +169,12 @@ class SmartRouteStop {
       outletName: json['outletName'] ?? 'Unknown outlet',
       ownerName: json['ownerName'] ?? 'Owner not set',
       address: json['address'],
-      latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
-      longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
+      latitude: json['latitude'] != null
+          ? double.tryParse(json['latitude'].toString())
+          : null,
+      longitude: json['longitude'] != null
+          ? double.tryParse(json['longitude'].toString())
+          : null,
       priorityScore: json['priorityScore']?.toDouble(),
       priorityBand: json['priorityBand'] ?? 'Standard',
       distanceKm: json['distanceKm']?.toDouble(),
@@ -219,64 +227,100 @@ class SmartRouteServiceException implements Exception {
 class SmartRouteService {
   final Dio _dio = DioClient.instance.client;
 
-  Future<SmartRouteSession> getOrCreateSession() async {
+  Future<SmartRouteSession> getOrCreateSession({String? routeId}) async {
     try {
-      final response = await _dio.get('/smart-route/session');
+      final response = await _dio.get(
+        '/smart-route/session',
+        queryParameters: {
+          if (routeId != null && routeId.trim().isNotEmpty)
+            'routeId': routeId.trim(),
+        },
+      );
       return SmartRouteSession.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching session',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error fetching session',
       );
     }
   }
 
   Future<SmartRouteProgress> getProgress({required String sessionId}) async {
     try {
-      final response = await _dio.get('/smart-route/progress', queryParameters: {'sessionId': sessionId});
+      final response = await _dio.get(
+        '/smart-route/progress',
+        queryParameters: {'sessionId': sessionId},
+      );
       return SmartRouteProgress.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching progress',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error fetching progress',
       );
     }
   }
 
-  Future<SmartRouteStop?> getNextStop({required String sessionId, double? lat, double? lng}) async {
+  Future<SmartRouteStop?> getNextStop({
+    required String sessionId,
+    double? lat,
+    double? lng,
+  }) async {
     try {
-      final response = await _dio.get('/smart-route/next-stop', queryParameters: {
-        'sessionId': sessionId,
-        // ignore: use_null_aware_elements
-        if (lat != null) 'lat': lat,
-        // ignore: use_null_aware_elements
-        if (lng != null) 'lng': lng,
-      });
-      if (response.statusCode == 204 || response.data == null || response.data == '') return null;
+      final response = await _dio.get(
+        '/smart-route/next-stop',
+        queryParameters: {
+          'sessionId': sessionId,
+          // ignore: use_null_aware_elements
+          if (lat != null) 'lat': lat,
+          // ignore: use_null_aware_elements
+          if (lng != null) 'lng': lng,
+        },
+      );
+      if (response.statusCode == 204 ||
+          response.data == null ||
+          response.data == '') {
+        return null;
+      }
       return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error fetching next stop',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error fetching next stop',
       );
     }
   }
 
   Future<SmartRouteStop> startStop({required String stopId}) async {
     try {
-      final response = await _dio.post('/smart-route/start', data: {'stopId': stopId});
+      final response = await _dio.post(
+        '/smart-route/start',
+        data: {'stopId': stopId},
+      );
       return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error starting stop',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error starting stop',
       );
     }
   }
 
   Future<SmartRouteStop> completeStop({required String stopId}) async {
     try {
-      final response = await _dio.post('/smart-route/complete', data: {'stopId': stopId});
+      final response = await _dio.post(
+        '/smart-route/complete',
+        data: {'stopId': stopId},
+      );
       return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error completing stop',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error completing stop',
       );
     }
   }
@@ -289,20 +333,29 @@ class SmartRouteService {
     double? lng,
   }) async {
     try {
-      final response = await _dio.post('/smart-route/skip', data: {
-        'stopId': stopId,
-        'reasonCode': reasonCode,
-        'freeText': freeText,
-        // ignore: use_null_aware_elements
-        if (lat != null) 'lat': lat,
-        // ignore: use_null_aware_elements
-        if (lng != null) 'lng': lng,
-      });
-      if (response.statusCode == 204 || response.data == null || response.data == '') return null;
+      final response = await _dio.post(
+        '/smart-route/skip',
+        data: {
+          'stopId': stopId,
+          'reasonCode': reasonCode,
+          'freeText': freeText,
+          // ignore: use_null_aware_elements
+          if (lat != null) 'lat': lat,
+          // ignore: use_null_aware_elements
+          if (lng != null) 'lng': lng,
+        },
+      );
+      if (response.statusCode == 204 ||
+          response.data == null ||
+          response.data == '') {
+        return null;
+      }
       return SmartRouteStop.fromJson(response.data);
     } on DioException catch (e) {
       throw SmartRouteServiceException(
-        e.response?.data?['message'] ?? e.message ?? 'Unknown error skipping stop',
+        e.response?.data?['message'] ??
+            e.message ??
+            'Unknown error skipping stop',
       );
     }
   }
