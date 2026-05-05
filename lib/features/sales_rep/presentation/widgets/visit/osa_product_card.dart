@@ -29,7 +29,7 @@ class OSAProductCard extends StatelessWidget {
   /// Shelf + backroom counts (for Stock tab mode)
   final StockEntry? stockEntry;
 
-  /// Total units ordered since last visit — used for estimated sales calc
+  /// Expected stock in base units since the outlet's latest completed visit.
   final int historicalQty;
 
   final Function(int shelfCount, int backroomCount)? onStockChanged;
@@ -72,11 +72,14 @@ class OSAProductCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(4),
       child: product.imageUrl != null
-          ? Image.network(product.imageUrl!, fit: BoxFit.contain,
+          ? Image.network(
+              product.imageUrl!,
+              fit: BoxFit.contain,
               errorBuilder: (_, _, _) => const Icon(
                 Icons.inventory_2_outlined,
                 color: AppTheme.textSoft,
-              ))
+              ),
+            )
           : const Icon(Icons.inventory_2_outlined, color: AppTheme.textSoft),
     );
   }
@@ -103,14 +106,13 @@ class OSAProductCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-        if (_showStockInputs && historicalQty > 0 && status != OSAStatus.outOfStock) ...[
+        if (_showStockInputs &&
+            historicalQty > 0 &&
+            status != OSAStatus.outOfStock) ...[
           const SizedBox(height: 2),
           Text(
-            'Ordered since last visit: $historicalQty units',
-            style: const TextStyle(
-              color: AppTheme.textSoft,
-              fontSize: 11,
-            ),
+            'Expected before count: $historicalQty units',
+            style: const TextStyle(color: AppTheme.textSoft, fontSize: 11),
           ),
         ],
       ],
@@ -191,8 +193,7 @@ class OSAProductCard extends StatelessWidget {
           child: _StockCountField(
             label: 'Shelf',
             initialValue: entry.shelfCount,
-            onChanged: (val) =>
-                onStockChanged?.call(val, entry.backroomCount),
+            onChanged: (val) => onStockChanged?.call(val, entry.backroomCount),
           ),
         ),
         const SizedBox(width: 8),
@@ -200,8 +201,7 @@ class OSAProductCard extends StatelessWidget {
           child: _StockCountField(
             label: 'Backroom',
             initialValue: entry.backroomCount,
-            onChanged: (val) =>
-                onStockChanged?.call(entry.shelfCount, val),
+            onChanged: (val) => onStockChanged?.call(entry.shelfCount, val),
           ),
         ),
         const SizedBox(width: 8),
@@ -283,8 +283,7 @@ class _StockCountFieldState extends State<_StockCountField> {
         labelText: widget.label,
         labelStyle: const TextStyle(fontSize: 10, color: AppTheme.textSoft),
         isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppTheme.outlineWarm),
@@ -295,8 +294,10 @@ class _StockCountFieldState extends State<_StockCountField> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide:
-              const BorderSide(color: AppTheme.primaryBrown, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppTheme.primaryBrown,
+            width: 1.5,
+          ),
         ),
       ),
       onChanged: (v) => widget.onChanged(int.tryParse(v) ?? 0),
