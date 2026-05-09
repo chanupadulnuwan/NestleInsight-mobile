@@ -18,6 +18,7 @@ import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
 import 'package:mobile/features/profile/presentation/widgets/shop_owner_profile_sheet.dart';
 import 'package:mobile/features/promotions/data/services/promotion_service.dart';
 import 'package:mobile/features/promotions/presentation/cubit/promotion_cubit.dart';
+import 'package:mobile/features/settings/presentation/pages/insights_page.dart';
 import 'package:mobile/features/settings/presentation/widgets/change_password_sheet.dart';
 
 class ShopOwnerDashboardPage extends StatefulWidget {
@@ -122,6 +123,12 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
         },
         onLogoutRequested: _logout,
       ),
+    );
+  }
+
+  Future<void> _openInsightsPage() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const InsightsPage()),
     );
   }
 
@@ -469,6 +476,7 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
                             onCartTap: () => _showCartSideSheet(isTablet),
                             onProceedOrderTap: _openOrderSummary,
                             onSecurityTap: _openChangePasswordSheet,
+                            onInsightsTap: _openInsightsPage,
                             onShowMessage: _showMessage,
                           ),
                         ),
@@ -497,6 +505,7 @@ class _TabBody extends StatelessWidget {
     required this.onCartTap,
     required this.onProceedOrderTap,
     required this.onSecurityTap,
+    required this.onInsightsTap,
     required this.onShowMessage,
   });
 
@@ -510,6 +519,7 @@ class _TabBody extends StatelessWidget {
   final VoidCallback onCartTap;
   final VoidCallback onProceedOrderTap;
   final VoidCallback onSecurityTap;
+  final VoidCallback onInsightsTap;
   final ValueChanged<String> onShowMessage;
 
   @override
@@ -528,6 +538,7 @@ class _TabBody extends StatelessWidget {
           isTablet: isTablet,
           profile: profile,
           onSecurityTap: onSecurityTap,
+          onInsightsTap: onInsightsTap,
         );
       case 0:
       default:

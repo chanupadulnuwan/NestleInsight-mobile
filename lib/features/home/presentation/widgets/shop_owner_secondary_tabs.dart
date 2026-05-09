@@ -431,11 +431,13 @@ class ShopOwnerSettingsTab extends StatelessWidget {
     required this.isTablet,
     required this.profile,
     required this.onSecurityTap,
+    required this.onInsightsTap,
   });
 
   final bool isTablet;
   final ShopOwnerProfile profile;
   final VoidCallback onSecurityTap;
+  final VoidCallback onInsightsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +475,37 @@ class ShopOwnerSettingsTab extends StatelessWidget {
           ),
           child: Column(
             children: <Widget>[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0EAE2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: AppTheme.primaryBrown,
+                  ),
+                ),
+                title: Text(
+                  'Insights',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: Text(
+                  'View your shop\'s sales performance chart and top trending products.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: onInsightsTap,
+              ),
+              Divider(color: AppTheme.outlineWarm.withAlpha(110)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Container(
