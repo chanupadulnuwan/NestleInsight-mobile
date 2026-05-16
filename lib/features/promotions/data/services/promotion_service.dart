@@ -126,16 +126,30 @@ class PromotionService {
   ///
   /// Calls `POST /promotions/validate`.
   Future<PromotionValidationResult> validatePromotion({
-    required String code,
+    String? code,
+    String? promotionId,
     required String territoryId,
     required double cartTotal,
     required List<Map<String, dynamic>> items,
   }) async {
+    final normalizedCode = code?.trim();
+    final normalizedPromotionId = promotionId?.trim();
+
+    if ((normalizedCode == null || normalizedCode.isEmpty) &&
+        (normalizedPromotionId == null || normalizedPromotionId.isEmpty)) {
+      throw const PromotionServiceException(
+        'Select a promotion before trying to apply it.',
+      );
+    }
+
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/promotions/validate',
         data: <String, dynamic>{
-          'code': code,
+          if (normalizedCode != null && normalizedCode.isNotEmpty)
+            'code': normalizedCode,
+          if (normalizedPromotionId != null && normalizedPromotionId.isNotEmpty)
+            'promotionId': normalizedPromotionId,
           'territoryId': territoryId,
           'cartTotal': cartTotal,
           'cartItems': items,

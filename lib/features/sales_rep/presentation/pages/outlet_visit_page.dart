@@ -1036,7 +1036,25 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                         final date = o['placedAt'] != null
                             ? DateTime.tryParse(o['placedAt'].toString())
                             : null;
-                        return Padding(
+                        final rawItems = o['items'];
+                        final items = rawItems is List
+                            ? rawItems
+                                  .whereType<Map>()
+                                  .map((item) => Map<String, dynamic>.from(item))
+                                  .toList(growable: false)
+                            : const <Map<String, dynamic>>[];
+                        final totalAmount =
+                            double.tryParse('${o['totalAmount'] ?? 0}') ?? 0;
+                        return _RecentOrderHistoryCard(
+                          date: date,
+                          currencyCode: o['currencyCode']?.toString() ?? 'LKR',
+                          totalAmount: totalAmount,
+                          status: o['status']?.toString() ?? '',
+                          itemCount: (o['itemCount'] as num?)?.toInt() ??
+                              items.length,
+                          items: items,
+                        );
+                        /* return Padding(
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Row(
                             children: [
@@ -1070,7 +1088,7 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                               ),
                             ],
                           ),
-                        );
+                        ); */
                       }),
                   ],
                 ),
@@ -1093,13 +1111,21 @@ class _OrderStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (status.toUpperCase()) {
+      case 'PROCEED':
       case 'APPROVED':
-      case 'SHIPPED':
+      case 'ASSIGNED':
       case 'READY_FOR_DELIVERY':
-        color = Colors.greenAccent;
+        color = const Color(0xFFBCF4CC);
         break;
+      case 'COMPLETED':
       case 'DELIVERED':
-        color = Colors.white70;
+        color = Colors.white;
+        break;
+      case 'DELAYED':
+        color = const Color(0xFFFFE082);
+        break;
+      case 'CANCELLED':
+        color = const Color(0xFFFFC4C4);
         break;
       default:
         color = Colors.white38;
@@ -1114,6 +1140,92 @@ class _OrderStatusBadge extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // Outlet selector card
 // ─────────────────────────────────────────────────────────────
+
+class _RecentOrderHistoryCard extends StatelessWidget {
+  const _RecentOrderHistoryCard({
+    required this.date,
+    required this.currencyCode,
+    required this.totalAmount,
+    required this.status,
+    required this.itemCount,
+    required this.items,
+  });
+
+  final DateTime? date;
+  final String currencyCode;
+  final double totalAmount;
+  final String status;
+  final int itemCount;
+  final List<Map<String, dynamic>> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  date != null ? _formatShortDate(date!) : '-',
+                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$currencyCode ${totalAmount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                _OrderStatusBadge(status: status),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$itemCount line${itemCount == 1 ? '' : 's'}',
+              style: const TextStyle(color: Colors.white54, fontSize: 10),
+            ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...items.take(3).map((item) {
+                final quantity = item['quantity'] ?? 0;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    '• ${item['productName'] ?? 'Product'} x $quantity',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              }),
+              if (items.length > 3)
+                Text(
+                  '+${items.length - 3} more item${items.length - 3 == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatShortDate(DateTime date) =>
+      '${date.day}/${date.month}/${date.year.toString().substring(2)}';
+}
 
 class _OutletGroupLabel extends StatelessWidget {
   const _OutletGroupLabel({required this.label});

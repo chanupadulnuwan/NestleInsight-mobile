@@ -187,7 +187,9 @@ class UploadReportCubit extends Cubit<UploadReportState> {
           reports: reports,
           selectedReport: updated,
           isSavingDraft: false,
-          successMessage: 'Draft comments saved.',
+          successMessage: updated.isSubmitted
+              ? 'Report notes updated. You can resubmit now.'
+              : 'Draft comments saved.',
         ),
       );
     } on UploadReportServiceException catch (e) {
@@ -225,7 +227,9 @@ class UploadReportCubit extends Cubit<UploadReportState> {
           reports: reports,
           selectedReport: submitted,
           isSubmitting: false,
-          successMessage: 'Final report submitted successfully.',
+          successMessage: report.isSubmitted
+              ? 'Report resubmitted successfully.'
+              : 'Final report submitted successfully.',
         ),
       );
     } on UploadReportServiceException catch (e) {

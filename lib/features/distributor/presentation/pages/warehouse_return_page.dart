@@ -21,6 +21,8 @@ class WarehouseReturnPage extends StatefulWidget {
 class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   final _service = DistributorService();
   final _searchController = TextEditingController();
+  final _cashReturnedController = TextEditingController();
+  final _varianceReasonController = TextEditingController();
   final List<ReturnItemInput> _items = [];
   final List<TextEditingController> _pinControllers = List.generate(
     6,
@@ -33,6 +35,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   bool _submitting = false;
   String? _error;
   bool _success = false;
+  String _varianceType = 'CASH_SHORT';
 
   String get _currentPin => _pinControllers.map((c) => c.text).join();
 
@@ -47,6 +50,8 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _cashReturnedController.dispose();
+    _varianceReasonController.dispose();
     for (final c in _pinControllers) {
       c.dispose();
     }
@@ -116,6 +121,14 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
       });
       return;
     }
+    final cashReturnedAmount =
+        double.tryParse(_cashReturnedController.text.trim()) ?? -1;
+    if (cashReturnedAmount < 0) {
+      setState(() {
+        _error = 'Enter the amount of cash returned to the warehouse.';
+      });
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -125,6 +138,9 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
         assignmentId: widget.assignmentId,
         tmPin: pin,
         items: _items,
+        cashReturnedAmount: cashReturnedAmount,
+        cashVarianceType: _varianceType,
+        cashVarianceReason: _varianceReasonController.text.trim(),
       );
       if (mounted) {
         setState(() {
@@ -359,6 +375,79 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     }),
                   ],
 
+                  const SizedBox(height: 24),
+                  Text(
+                    'Cash Returned to Warehouse',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the cash handed back with this route. If it does not match the expected route cash, add the mismatch type and reason below.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _cashReturnedController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Cash returned (LKR)',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _varianceType,
+                    decoration: const InputDecoration(
+                      labelText: 'Mismatch type (if needed)',
+                      prefixIcon: Icon(Icons.rule_folder_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'CASH_SHORT',
+                        child: Text('Cash short'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CASH_EXCESS',
+                        child: Text('Cash excess'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'RETURN_ADJUSTMENT',
+                        child: Text('Return adjustment'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'OTHER',
+                        child: Text('Other'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _varianceType = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _varianceReasonController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Mismatch reason (required only when cash does not match)',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   const Divider(color: AppTheme.outlineWarm),
                   const SizedBox(height: 16),

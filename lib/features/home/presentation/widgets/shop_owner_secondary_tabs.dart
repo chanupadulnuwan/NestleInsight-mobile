@@ -279,6 +279,11 @@ class ShopOwnerOrdersTab extends StatelessWidget {
                     Column(
                       children: <Widget>[
                         _OrderAmountRow(
+                          label: 'Payment method',
+                          value: order.paymentMethodLabel,
+                        ),
+                        const SizedBox(height: 10),
+                        _OrderAmountRow(
                           label: 'Total before promotion',
                           value: _formatCurrency(order.subtotalBeforeDiscount),
                         ),

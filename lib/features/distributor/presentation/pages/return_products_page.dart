@@ -72,6 +72,7 @@ class _ReturnProductsPageState extends State<ReturnProductsPage> {
         assignmentId: widget.assignmentId,
         tmPin: pin,
         items: _items,
+        cashReturnedAmount: 0,
       );
       if (mounted) setState(() { _success = true; _submitting = false; });
     } on DistributorServiceException catch (e) {

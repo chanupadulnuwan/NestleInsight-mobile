@@ -50,6 +50,7 @@ class ShopOwnerDashboardController extends ChangeNotifier {
   bool _isPlacingOrder = false;
   bool _isSubmittingFeedback = false;
   bool _isValidatingPromo = false;
+  bool _cashOnDeliveryEnabled = false;
 
   String? _catalogError;
   String? _ordersError;
@@ -86,6 +87,7 @@ class ShopOwnerDashboardController extends ChangeNotifier {
   bool get isPlacingOrder => _isPlacingOrder;
   bool get isSubmittingFeedback => _isSubmittingFeedback;
   bool get isValidatingPromo => _isValidatingPromo;
+  bool get cashOnDeliveryEnabled => _cashOnDeliveryEnabled;
 
   String? get catalogError => _catalogError;
   String? get ordersError => _ordersError;
@@ -185,15 +187,15 @@ class ShopOwnerDashboardController extends ChangeNotifier {
   }
 
   void _revalidateAppliedPromotion() {
-    if (_appliedPromotion != null) {
-      // If items change, we technically should re-validate, but for simplicity
-      // and to avoid flickering/too many calls, we'll just clear or let the 
-      // user re-tap. For this implementation, let's keep it simple: 
-      // if quantity changes, keep the promo but the user might get a mismatch 
-      // until they re-apply. 
-      // Higher quality: clear on change.
-      // I'll leave it for now to let the user manual re-apply if they want.
-    }
+    if (_appliedPromotion == null) return;
+
+    _clearPromotionState();
+  }
+
+  void _clearPromotionState() {
+    _appliedPromotion = null;
+    _promoDiscount = 0.0;
+    _promoError = null;
   }
 
   CartReplacementResult replaceCartWithOrder(ShopOrder order) {
@@ -205,6 +207,7 @@ class ShopOwnerDashboardController extends ChangeNotifier {
     _cartItems.clear();
     _appliedPromotion = null;
     _promoDiscount = 0.0;
+    _cashOnDeliveryEnabled = false;
 
     for (final item in order.items) {
       final productId = item.productId;
@@ -240,29 +243,44 @@ class ShopOwnerDashboardController extends ChangeNotifier {
     if (item == null) return;
     if (quantity <= 0) {
       _cartItems.remove(productId);
-      if (_cartItems.isEmpty) clearPromotion();
+      if (_cartItems.isEmpty) {
+        _clearPromotionState();
+        _cashOnDeliveryEnabled = false;
+      } else {
+        _revalidateAppliedPromotion();
+      }
     } else {
       _cartItems[productId] = item.copyWith(quantity: quantity.clamp(1, 99));
+      _revalidateAppliedPromotion();
     }
     notifyListeners();
   }
 
   void clearCart() {
     _cartItems.clear();
-    clearPromotion();
+    _clearPromotionState();
+    _cashOnDeliveryEnabled = false;
+    notifyListeners();
+  }
+
+  void setCashOnDeliveryEnabled(bool enabled) {
+    if (_cashOnDeliveryEnabled == enabled) {
+      return;
+    }
+
+    _cashOnDeliveryEnabled = enabled;
     notifyListeners();
   }
 
   Future<void> applyPromotion(Promotion promo, String territoryId) async {
-    if (promo.code == null) return;
-    
     _isValidatingPromo = true;
     _promoError = null;
     notifyListeners();
 
     try {
       final result = await _promotionService.validatePromotion(
-        code: promo.code!,
+        code: promo.code,
+        promotionId: promo.id,
         territoryId: territoryId,
         cartTotal: cartSubtotal,
         items: cartItems.map((item) => {
@@ -275,6 +293,7 @@ class ShopOwnerDashboardController extends ChangeNotifier {
       if (result.success) {
         _appliedPromotion = promo;
         _promoDiscount = result.discountAmount;
+        _promoError = null;
       } else {
         _promoError = result.message;
       }
@@ -287,9 +306,7 @@ class ShopOwnerDashboardController extends ChangeNotifier {
   }
 
   void clearPromotion() {
-    _appliedPromotion = null;
-    _promoDiscount = 0.0;
-    _promoError = null;
+    _clearPromotionState();
     notifyListeners();
   }
 
@@ -335,10 +352,12 @@ class ShopOwnerDashboardController extends ChangeNotifier {
         appliedPromotionId: _appliedPromotion?.id,
         appliedPromotionCode: _appliedPromotion?.code,
         discountAmount: _promoDiscount,
+        paymentMethod: _cashOnDeliveryEnabled ? 'CASH_ON_DELIVERY' : 'STANDARD',
       );
       _cartItems.clear();
       _appliedPromotion = null;
       _promoDiscount = 0.0;
+      _cashOnDeliveryEnabled = false;
       _orders = <ShopOrder>[result.order, ..._orders];
       await loadActivities();
       return result.order;

@@ -249,6 +249,7 @@ class OrderService {
     String? appliedPromotionId,
     String? appliedPromotionCode,
     double? discountAmount,
+    String? paymentMethod,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -262,9 +263,17 @@ class OrderService {
                 },
               )
               .toList(),
-          'appliedPromotionId': ?appliedPromotionId,
-          'appliedPromotionCode': ?appliedPromotionCode,
-          'discountAmount': ?discountAmount,
+          if (appliedPromotionId != null && appliedPromotionId.trim().isNotEmpty)
+            'appliedPromotionId': appliedPromotionId.trim(),
+          if (appliedPromotionCode != null &&
+              appliedPromotionCode.trim().isNotEmpty)
+            'appliedPromotionCode': appliedPromotionCode.trim(),
+          ...?discountAmount == null
+              ? null
+              : <String, dynamic>{'discountAmount': discountAmount},
+          ...?(paymentMethod == null || paymentMethod.trim().isEmpty)
+              ? null
+              : <String, dynamic>{'paymentMethod': paymentMethod.trim()},
         },
       );
 

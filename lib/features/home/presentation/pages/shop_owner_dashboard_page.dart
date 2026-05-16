@@ -42,11 +42,77 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   String _territoryId = '';
   late PromotionCubit _promotionCubit;
 
+  String _readTerritoryId(Map<String, dynamic>? user) {
+    final directTerritoryId = user?['territoryId']?.toString().trim();
+    if (directTerritoryId != null && directTerritoryId.isNotEmpty) {
+      return directTerritoryId;
+    }
+
+    final territory = user?['territory'];
+    if (territory is Map) {
+      final nestedTerritoryId = territory['id']?.toString().trim();
+      if (nestedTerritoryId != null && nestedTerritoryId.isNotEmpty) {
+        return nestedTerritoryId;
+      }
+    }
+
+    final warehouse = user?['warehouse'];
+    if (warehouse is Map) {
+      final nestedWarehouseTerritoryId =
+          warehouse['territoryId']?.toString().trim();
+      if (nestedWarehouseTerritoryId != null &&
+          nestedWarehouseTerritoryId.isNotEmpty) {
+        return nestedWarehouseTerritoryId;
+      }
+    }
+
+    return '';
+  }
+
+  PromotionCubit _createPromotionCubit(String territoryId) {
+    return PromotionCubit(
+      territoryId: territoryId,
+      service: PromotionService(),
+    )..loadPromotions();
+  }
+
+  Future<void> _refreshUserContext() async {
+    try {
+      final currentUser = await _authService.fetchCurrentUser();
+      if (!mounted || currentUser == null) {
+        return;
+      }
+
+      final nextProfile = ShopOwnerProfile.fromJson(currentUser);
+      final nextTerritoryId = _readTerritoryId(currentUser);
+
+      if (nextTerritoryId == _territoryId) {
+        setState(() {
+          _profile = nextProfile;
+        });
+        return;
+      }
+
+      final previousCubit = _promotionCubit;
+      final nextCubit = _createPromotionCubit(nextTerritoryId);
+
+      setState(() {
+        _profile = nextProfile;
+        _territoryId = nextTerritoryId;
+        _promotionCubit = nextCubit;
+      });
+
+      unawaited(previousCubit.close());
+    } on AuthServiceException {
+      // Keep using the cached session payload if the refresh fails.
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _profile = ShopOwnerProfile.fromJson(widget.user);
-    _territoryId = widget.user?['territoryId']?.toString() ?? '';
+    _territoryId = _readTerritoryId(widget.user);
     _currentTime = DateTime.now();
 
     _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -59,12 +125,10 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
       });
     });
 
-    _promotionCubit = PromotionCubit(
-      territoryId: _territoryId,
-      service: PromotionService(),
-    )..loadPromotions();
+    _promotionCubit = _createPromotionCubit(_territoryId);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_refreshUserContext());
       _dashboardController.loadCatalog();
       _dashboardController.loadOrders();
       _dashboardController.loadActivities();
@@ -206,6 +270,7 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
               subtotal: _dashboardController.cartSubtotal,
               discountAmount: _dashboardController.promoDiscount,
               totalAmount: _dashboardController.cartTotal,
+              isCashOnDelivery: _dashboardController.cashOnDeliveryEnabled,
               isTablet: isTablet,
               isSubmitting: _dashboardController.isPlacingOrder,
               onConfirm: () async {

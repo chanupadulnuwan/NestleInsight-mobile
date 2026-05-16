@@ -400,9 +400,14 @@ class _OfferBanner extends StatelessWidget {
                     final String subtitle;
                     if (state is PromotionLoading) {
                       subtitle = 'Fetching deals...';
+                    } else if (state is PromotionError) {
+                      subtitle = 'Deals unavailable right now.';
                     } else if (state is PromotionLoaded &&
                         state.firstPromotion != null) {
                       subtitle = state.firstPromotion!.name;
+                    } else if (state is PromotionLoaded &&
+                        state.territoryId.trim().isEmpty) {
+                      subtitle = 'Syncing your territory...';
                     } else {
                       subtitle = 'No active deals right now.';
                     }

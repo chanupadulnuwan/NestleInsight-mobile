@@ -95,6 +95,12 @@ class DeliveryAssignment {
     required this.deliveryDate,
     required this.status,
     required this.notes,
+    required this.expectedCashAmount,
+    required this.cashReturnedAmount,
+    required this.cashVarianceAmount,
+    required this.cashVarianceType,
+    required this.cashVarianceReason,
+    required this.settlementCompletedAt,
     required this.orders,
   });
 
@@ -112,6 +118,14 @@ class DeliveryAssignment {
       deliveryDate: json['deliveryDate'] as String? ?? '',
       status: json['status'] as String? ?? 'ACTIVE',
       notes: json['notes'] as String?,
+      expectedCashAmount: (json['expectedCashAmount'] as num?)?.toDouble(),
+      cashReturnedAmount: (json['cashReturnedAmount'] as num?)?.toDouble(),
+      cashVarianceAmount: (json['cashVarianceAmount'] as num?)?.toDouble(),
+      cashVarianceType: json['cashVarianceType'] as String?,
+      cashVarianceReason: json['cashVarianceReason'] as String?,
+      settlementCompletedAt: DateTime.tryParse(
+        json['settlementCompletedAt'] as String? ?? '',
+      ),
       orders:
           rawOrders
               .map(
@@ -135,6 +149,12 @@ class DeliveryAssignment {
   final String deliveryDate;
   final String status;
   final String? notes;
+  final double? expectedCashAmount;
+  final double? cashReturnedAmount;
+  final double? cashVarianceAmount;
+  final String? cashVarianceType;
+  final String? cashVarianceReason;
+  final DateTime? settlementCompletedAt;
   final List<AssignmentOrder> orders;
 
   int get completedCount => orders.where((o) => o.isCompleted).length;

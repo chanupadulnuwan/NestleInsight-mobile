@@ -17,6 +17,19 @@ class ShopOwnerProfile {
       return value == null ? '' : value.toString().trim();
     }
 
+    String? readNestedLabel(String key, String nestedKey) {
+      final value = json?[key];
+      if (value is Map) {
+        final nestedValue = value[nestedKey];
+        final normalizedValue = nestedValue?.toString().trim();
+        if (normalizedValue != null && normalizedValue.isNotEmpty) {
+          return normalizedValue;
+        }
+      }
+
+      return null;
+    }
+
     return ShopOwnerProfile(
       username: readValue('username'),
       firstName: readValue('firstName'),
@@ -27,8 +40,11 @@ class ShopOwnerProfile {
       address: readValue('address'),
       territory:
           _readNullableValue(json?['territoryName']) ??
+          readNestedLabel('territory', 'name') ??
           _readNullableValue(json?['territory']),
-      warehouse: _readNullableValue(json?['warehouseName']),
+      warehouse:
+          _readNullableValue(json?['warehouseName']) ??
+          readNestedLabel('warehouse', 'name'),
     );
   }
 

@@ -50,6 +50,29 @@ class AuthService {
   final Dio _dio;
   final TokenStorageService _tokenStorageService;
 
+  Map<String, dynamic>? _readUserPayload(Map<String, dynamic>? json) {
+    final rawUser = json?['user'];
+    if (rawUser is Map) {
+      return Map<String, dynamic>.from(rawUser);
+    }
+
+    final rawData = json?['data'];
+    if (rawData is Map<String, dynamic>) {
+      final nestedUser = rawData['user'];
+      if (nestedUser is Map) {
+        return Map<String, dynamic>.from(nestedUser);
+      }
+
+      return Map<String, dynamic>.from(rawData);
+    }
+
+    if (rawData is Map) {
+      return Map<String, dynamic>.from(rawData);
+    }
+
+    return null;
+  }
+
   Future<AuthResult> login({
     required String identifier,
     required String password,
@@ -60,21 +83,51 @@ class AuthService {
         data: {'identifier': identifier.trim(), 'password': password},
       );
 
-      final result = AuthResult.fromJson(response.data ?? <String, dynamic>{});
+      final responseData = response.data ?? <String, dynamic>{};
+      final result = AuthResult.fromJson(responseData);
+      final normalizedUser = _readUserPayload(responseData) ?? result.user;
 
       if (result.accessToken != null && result.accessToken!.isNotEmpty) {
         await _tokenStorageService.saveAccessToken(result.accessToken!);
-        if (result.user != null) {
-          await _tokenStorageService.saveUserData(result.user!);
+        if (normalizedUser != null) {
+          await _tokenStorageService.saveUserData(normalizedUser);
         }
       }
 
-      return result;
+      return AuthResult(
+        message: result.message,
+        accessToken: result.accessToken,
+        user: normalizedUser,
+        otpRequired: result.otpRequired,
+        otpDeliveryMethod: result.otpDeliveryMethod,
+        debugOtpCode: result.debugOtpCode,
+      );
     } on DioException catch (error) {
       throw AuthServiceException(
         extractBackendErrorMessage(
           error,
           fallbackMessage: 'Unable to log in right now.',
+        ),
+        code: extractBackendErrorCode(error),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchCurrentUser() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+      final user = _readUserPayload(response.data);
+
+      if (user != null) {
+        await _tokenStorageService.saveUserData(user);
+      }
+
+      return user;
+    } on DioException catch (error) {
+      throw AuthServiceException(
+        extractBackendErrorMessage(
+          error,
+          fallbackMessage: 'Unable to load your account details right now.',
         ),
         code: extractBackendErrorCode(error),
       );

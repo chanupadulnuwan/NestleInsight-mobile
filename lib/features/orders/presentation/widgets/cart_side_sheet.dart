@@ -138,6 +138,8 @@ class CartSideSheet extends StatelessWidget {
                           ),
                   ),
                   const SizedBox(height: 16),
+                  _PaymentMethodPanel(controller: controller),
+                  const SizedBox(height: 16),
                   _PriceSummaryPanel(controller: controller, onProceed: onProceedOrder),
                 ],
               ),
@@ -510,6 +512,49 @@ class _PriceSummaryPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PaymentMethodPanel extends StatelessWidget {
+  const _PaymentMethodPanel({required this.controller});
+
+  final ShopOwnerDashboardController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.outlineWarm.withAlpha(100)),
+      ),
+      child: CheckboxListTile(
+        value: controller.cashOnDeliveryEnabled,
+        onChanged: controller.cartItems.isEmpty
+            ? null
+            : (value) => controller.setCashOnDeliveryEnabled(value ?? false),
+        controlAffinity: ListTileControlAffinity.leading,
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        activeColor: AppTheme.proceedOrderOlive,
+        title: const Text(
+          'Cash on delivery',
+          style: TextStyle(
+            color: AppTheme.textDark,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: const Text(
+          'Mark this order so the shop pays when the distributor delivers it.',
+          style: TextStyle(
+            color: AppTheme.textSoft,
+            fontSize: 12,
+            height: 1.4,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -55,6 +55,7 @@ class ShopOrder {
     required this.placedAt,
     required this.items,
     this.appliedPromotionCode,
+    this.paymentMethod = 'STANDARD',
     this.customerNote,
     this.delayReason,
     this.delayedAt,
@@ -87,6 +88,7 @@ class ShopOrder {
       placedAt: DateTime.tryParse(json['placedAt'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
       appliedPromotionCode: json['appliedPromotionCode'] as String?,
+      paymentMethod: json['paymentMethod'] as String? ?? 'STANDARD',
       customerNote: json['customerNote'] as String?,
       delayReason: json['delayReason'] as String?,
       delayedAt: DateTime.tryParse(
@@ -111,12 +113,21 @@ class ShopOrder {
   final double totalAfterDiscount;
   final DateTime placedAt;
   final String? appliedPromotionCode;
+  final String paymentMethod;
   final String? customerNote;
   final String? delayReason;
   final DateTime? delayedAt;
   final DateTime? deliveryDueAt;
   final bool isOverdue;
   final List<ShopOrderItem> items;
+
+  String get paymentMethodLabel {
+    if (paymentMethod.toUpperCase() == 'CASH_ON_DELIVERY') {
+      return 'Cash on delivery';
+    }
+
+    return 'Standard checkout';
+  }
 }
 
 double _readDouble(dynamic value) {

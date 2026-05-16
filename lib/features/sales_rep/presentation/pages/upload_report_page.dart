@@ -152,7 +152,8 @@ class _UploadReportPageState extends State<UploadReportPage> {
       );
     }
 
-    final canEditDraft = report.isDraft;
+    final isSubmitted = report.isSubmitted;
+    final canEditComments = !state.isSavingDraft;
 
     return RefreshIndicator(
       onRefresh: () => context.read<UploadReportCubit>().loadMyReports(
@@ -162,14 +163,16 @@ class _UploadReportPageState extends State<UploadReportPage> {
         padding: const EdgeInsets.all(16),
         children: [
           _InfoBanner(
-            title: canEditDraft ? 'Draft ready for review' : 'Submitted report',
-            message: canEditDraft
-                ? 'Review the collected sections below, add comments if needed, then submit the final report.'
-                : 'This report has already been submitted. You can still review the captured summary.',
-            icon: canEditDraft ? Icons.fact_check_outlined : Icons.check_circle,
-            accentColor: canEditDraft
-                ? AppTheme.securitySlate
-                : AppTheme.proceedOrderOlive,
+            title: isSubmitted
+                ? 'Submitted report ready to update'
+                : 'Draft ready for review',
+            message: isSubmitted
+                ? 'You can add new notes to this past report and resubmit it after making changes.'
+                : 'Review the collected sections below, add comments if needed, then submit the final report.',
+            icon:
+                isSubmitted ? Icons.history_toggle_off : Icons.fact_check_outlined,
+            accentColor:
+                isSubmitted ? AppTheme.proceedOrderOlive : AppTheme.securitySlate,
           ),
           const SizedBox(height: 16),
           _HeaderCard(report: report),
@@ -207,10 +210,12 @@ class _UploadReportPageState extends State<UploadReportPage> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _commentsController,
-                    enabled: canEditDraft && !state.isSavingDraft,
+                    enabled: canEditComments,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      hintText: 'Add any final notes before submission...',
+                      hintText: isSubmitted
+                          ? 'Add updated notes before resubmitting...'
+                          : 'Add any final notes before submission...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -221,65 +226,54 @@ class _UploadReportPageState extends State<UploadReportPage> {
             ),
           ),
           const SizedBox(height: 16),
-          if (canEditDraft) ...[
-            OutlinedButton(
-              onPressed: state.isSavingDraft
-                  ? null
-                  : () {
-                      context.read<UploadReportCubit>().saveDraftComments(
-                        _commentsController.text.trim(),
-                      );
-                    },
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: AppTheme.primaryBrown),
-              ),
-              child: state.isSavingDraft
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
-                    )
-                  : const Text('Save Draft Comments'),
+          OutlinedButton(
+            onPressed: state.isSavingDraft
+                ? null
+                : () {
+                    context.read<UploadReportCubit>().saveDraftComments(
+                      _commentsController.text.trim(),
+                    );
+                  },
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: const BorderSide(color: AppTheme.primaryBrown),
             ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: state.isSubmitting
-                  ? null
-                  : () {
-                      context.read<UploadReportCubit>().submitSelectedReport();
-                    },
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.proceedOrderOlive,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: state.isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.2,
-                      ),
-                    )
-                  : const Text(
-                      'Submit Final Report',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+            child: state.isSavingDraft
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : Text(isSubmitted ? 'Update Notes' : 'Save Draft Comments'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: state.isSubmitting
+                ? null
+                : () {
+                    context.read<UploadReportCubit>().submitSelectedReport();
+                  },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.proceedOrderOlive,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: state.isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.2,
                     ),
-            ),
-          ] else ...[
-            FilledButton(
-              onPressed: null,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.proceedOrderOlive,
-                disabledBackgroundColor: AppTheme.proceedOrderOlive,
-              ),
-              child: const Text('Report Submitted'),
-            ),
-          ],
+                  )
+                : Text(
+                    isSubmitted ? 'Resubmit Report' : 'Submit Final Report',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
           const SizedBox(height: 8),
           if (widget.routeId.trim().isNotEmpty)
             TextButton.icon(

@@ -12,6 +12,7 @@ class OrderSummarySheet extends StatelessWidget {
     required this.subtotal,
     required this.discountAmount,
     required this.totalAmount,
+    required this.isCashOnDelivery,
     required this.onConfirm,
   });
 
@@ -21,6 +22,7 @@ class OrderSummarySheet extends StatelessWidget {
   final double subtotal;
   final double discountAmount;
   final double totalAmount;
+  final bool isCashOnDelivery;
   final Future<void> Function() onConfirm;
 
   @override
@@ -146,6 +148,53 @@ class OrderSummarySheet extends StatelessWidget {
                         ),
                       );
                     },
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceWarm,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppTheme.outlineWarm.withAlpha(100),
+                    ),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(
+                        Icons.payments_outlined,
+                        color: AppTheme.primaryBrownDark,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Payment method',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppTheme.textSoft,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isCashOnDelivery
+                                  ? 'Cash on delivery'
+                                  : 'Standard checkout',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: AppTheme.textDark,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),

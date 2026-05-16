@@ -38,10 +38,22 @@ class PromotionCubit extends Cubit<PromotionState> {
 
     emit(const PromotionLoading());
     try {
-      final promotions = await _service.fetchActivePromotions(territoryId);
+      var promotions = await _service.fetchActivePromotions(territoryId);
+      if (promotions.isEmpty) {
+        promotions = (await _service.fetchTerritoryPromotions(territoryId))
+            .where((promotion) => promotion.isActive)
+            .toList(growable: false);
+      }
       emit(PromotionLoaded(promotions, territoryId: territoryId));
     } on PromotionServiceException catch (error) {
-      emit(PromotionError(error.message));
+      try {
+        final promotions = (await _service.fetchTerritoryPromotions(territoryId))
+            .where((promotion) => promotion.isActive)
+            .toList(growable: false);
+        emit(PromotionLoaded(promotions, territoryId: territoryId));
+      } on PromotionServiceException {
+        emit(PromotionError(error.message));
+      }
     } catch (error) {
       emit(PromotionError('An unexpected error occurred: $error'));
     }

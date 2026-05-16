@@ -68,14 +68,16 @@ class Promotion {
 
   /// Human-readable summary of the discount for banner / card display.
   String get offerSummary {
-    if (discountType == 'PERCENTAGE') {
+    final normalizedDiscountType = discountType.trim().toLowerCase();
+
+    if (normalizedDiscountType == 'percentage') {
       final display = discountValue == discountValue.roundToDouble()
           ? discountValue.toInt().toString()
           : discountValue.toStringAsFixed(1);
       return '$display% off';
     }
 
-    if (discountType == 'FIXED') {
+    if (normalizedDiscountType == 'fixed') {
       final display = discountValue == discountValue.roundToDouble()
           ? 'LKR ${discountValue.toInt()}'
           : 'LKR ${discountValue.toStringAsFixed(2)}';
@@ -110,7 +112,21 @@ class Promotion {
     return normalizedStatus == 'active';
   }
 
-  String get normalizedStatus => status.trim().toLowerCase();
+  String get normalizedStatus {
+    final rawStatus = status.trim().toLowerCase();
+
+    if (rawStatus == 'disabled') return 'disabled';
+    if (rawStatus == 'draft') return 'draft';
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startsOn = DateTime(startDate.year, startDate.month, startDate.day);
+    final endsOn = DateTime(endDate.year, endDate.month, endDate.day);
+
+    if (today.isBefore(startsOn)) return 'scheduled';
+    if (today.isAfter(endsOn)) return 'expired';
+    return 'active';
+  }
 
   bool get isScheduled => normalizedStatus == 'scheduled';
 

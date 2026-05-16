@@ -50,7 +50,9 @@ class ShopPromotionsPage extends StatelessWidget {
 
           if (state is PromotionLoaded) {
             if (state.promotions.isEmpty) {
-              return const _EmptyView();
+              return _EmptyView(
+                hasTerritory: state.territoryId.trim().isNotEmpty,
+              );
             }
 
             return ListView.builder(
@@ -61,11 +63,8 @@ class ShopPromotionsPage extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ShopPromotionDetailPage(promotion: promo),
-                      ),
-                    ),
+                    onTap: () =>
+                        showShopPromotionDetailSheet(context, promo),
                     borderRadius: BorderRadius.circular(24),
                     child: _PromotionCard(promotion: promo),
                   ),
@@ -285,7 +284,9 @@ class _DateRangeRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  const _EmptyView({required this.hasTerritory});
+
+  final bool hasTerritory;
 
   @override
   Widget build(BuildContext context) {
@@ -302,7 +303,7 @@ class _EmptyView extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'No Active Deals',
+              hasTerritory ? 'No Active Deals' : 'Still Syncing Your Shop',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppTheme.textDark,
                     fontWeight: FontWeight.w800,
@@ -310,7 +311,9 @@ class _EmptyView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'There are no active promotions for your territory right now.\nCheck back soon!',
+              hasTerritory
+                  ? 'There are no active promotions for your territory right now.\nCheck back soon!'
+                  : 'Your territory assignment is still syncing in the app, so deals cannot be matched yet.\nPlease reopen the app in a moment.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.textSoft,

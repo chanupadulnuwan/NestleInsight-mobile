@@ -136,11 +136,22 @@ class DistributorService {
     required String assignmentId,
     required String tmPin,
     required List<ReturnItemInput> items,
+    required double cashReturnedAmount,
+    String? cashVarianceType,
+    String? cashVarianceReason,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/delivery-assignments/$assignmentId/returns',
-        data: {'tmPin': tmPin, 'items': items.map((i) => i.toJson()).toList()},
+        data: {
+          'tmPin': tmPin,
+          'cashReturnedAmount': cashReturnedAmount,
+          if (cashVarianceType != null && cashVarianceType.trim().isNotEmpty)
+            'cashVarianceType': cashVarianceType.trim(),
+          if (cashVarianceReason != null && cashVarianceReason.trim().isNotEmpty)
+            'cashVarianceReason': cashVarianceReason.trim(),
+          'items': items.map((i) => i.toJson()).toList(),
+        },
       );
       return response.data?['message'] as String? ?? 'Return submitted.';
     } on DioException catch (e) {
