@@ -1047,7 +1047,7 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                             : const <Map<String, dynamic>>[];
                         final totalAmount =
                             double.tryParse('${o['totalAmount'] ?? 0}') ?? 0;
-                        return _RecentOrderHistoryCard(
+                        return _ResolvedRecentOrderHistoryCard(
                           date: date,
                           currencyCode: o['currencyCode']?.toString() ?? 'LKR',
                           totalAmount: totalAmount,
@@ -1143,6 +1143,7 @@ class _OrderStatusBadge extends StatelessWidget {
 // Outlet selector card
 // ─────────────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _RecentOrderHistoryCard extends StatelessWidget {
   const _RecentOrderHistoryCard({
     required this.date,
@@ -1233,6 +1234,106 @@ class _RecentOrderHistoryCard extends StatelessWidget {
 
   String _formatShortDate(DateTime date) =>
       '${date.day}/${date.month}/${date.year.toString().substring(2)}';
+}
+
+class _ResolvedRecentOrderHistoryCard extends StatelessWidget {
+  const _ResolvedRecentOrderHistoryCard({
+    required this.date,
+    required this.currencyCode,
+    required this.totalAmount,
+    required this.status,
+    required this.itemCount,
+    required this.items,
+  });
+
+  final DateTime? date;
+  final String currencyCode;
+  final double totalAmount;
+  final String status;
+  final int itemCount;
+  final List<Map<String, dynamic>> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  date != null ? _formatShortDate(date!) : '-',
+                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$currencyCode ${totalAmount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                _OrderStatusBadge(status: status),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$itemCount line${itemCount == 1 ? '' : 's'} - quantities converted to units',
+              style: const TextStyle(color: Colors.white54, fontSize: 10),
+            ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...items.take(3).map((item) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    _formatItemLine(item),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              }),
+              if (items.length > 3)
+                Text(
+                  '+${items.length - 3} more item${items.length - 3 == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatShortDate(DateTime date) =>
+      '${date.day}/${date.month}/${date.year.toString().substring(2)}';
+
+  String _formatItemLine(Map<String, dynamic> item) {
+    final productName = item['productName']?.toString() ?? 'Product';
+    final quantityCases = (item['quantity'] as num?)?.toInt() ?? 0;
+    final unitsPerCase = (item['productsPerCase'] as num?)?.toInt() ?? 1;
+    final quantityUnits =
+        (item['quantityUnits'] as num?)?.toInt() ??
+        (quantityCases * unitsPerCase);
+
+    if (unitsPerCase <= 1 || quantityCases <= 0) {
+      return '- $productName: $quantityUnits unit${quantityUnits == 1 ? '' : 's'}';
+    }
+
+    return '- $productName: $quantityCases case${quantityCases == 1 ? '' : 's'} = $quantityUnits units';
+  }
 }
 
 class _OutletGroupLabel extends StatelessWidget {

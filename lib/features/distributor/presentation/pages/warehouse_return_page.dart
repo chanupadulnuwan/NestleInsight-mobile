@@ -75,7 +75,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
           productNameSnapshot: product.productName,
           quantity: product.quantity,
           unitType: 'CASE',
-          reason: 'EXPIRED',
+          reason: 'SELLABLE_RETURN',
           unitPrice: product.unitPrice,
         ),
       );
@@ -299,7 +299,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
 
                   if (_items.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Text(
+                  Text(
                       'Return List',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -307,6 +307,13 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    Text(
+                      'Sellable returns go back into warehouse stock. Damaged or expired items stay out of sellable stock.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     ..._items.asMap().entries.map((entry) {
                       final i = entry.key;
                       final item = entry.value;
@@ -368,6 +375,43 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              initialValue: item.reason,
+                              decoration: const InputDecoration(
+                                labelText: 'Return type',
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'SELLABLE_RETURN',
+                                  child: Text('Sellable return'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'DAMAGED',
+                                  child: Text('Damaged'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'EXPIRED',
+                                  child: Text('Expired'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'OTHER',
+                                  child: Text('Other'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  item.reason = value;
+                                });
+                              },
                             ),
                           ],
                         ),
