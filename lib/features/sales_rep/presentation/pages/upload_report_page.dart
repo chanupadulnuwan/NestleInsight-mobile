@@ -345,7 +345,7 @@ class _UploadReportPageState extends State<UploadReportPage> {
           final report = state.reports[reportIndex];
           final isSelected = state.selectedReport?.id == report.id;
           final isChecked = _selectedReportIds.contains(report.id);
-          final canSelectForUpload = report.isDraft;
+          final canSelectForUpload = report.isDraft || report.isSubmitted;
           final badgeColor = report.isSubmitted
               ? AppTheme.proceedOrderOlive
               : AppTheme.kOrange;
@@ -567,8 +567,8 @@ class _BulkUploadPanel extends StatelessWidget {
             Expanded(
               child: Text(
                 selectedCount == 0
-                    ? 'Select draft reports to upload'
-                    : '$selectedCount draft report${selectedCount == 1 ? '' : 's'} selected',
+                    ? 'Select reports to submit or resubmit'
+                    : '$selectedCount report${selectedCount == 1 ? '' : 's'} selected',
                 style: const TextStyle(
                   color: AppTheme.textDark,
                   fontWeight: FontWeight.w700,

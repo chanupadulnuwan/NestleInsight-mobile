@@ -247,7 +247,7 @@ class UploadReportCubit extends Cubit<UploadReportState> {
   Future<void> submitReports(Set<String> reportIds) async {
     final ids = reportIds.where((id) => id.trim().isNotEmpty).toList();
     if (ids.isEmpty) {
-      emit(state.copyWith(errorMessage: 'Select at least one draft report.'));
+      emit(state.copyWith(errorMessage: 'Select at least one report.'));
       return;
     }
 
@@ -275,7 +275,7 @@ class UploadReportCubit extends Cubit<UploadReportState> {
           selectedReport: selectedReport,
           isSubmitting: false,
           successMessage:
-              '${ids.length} report${ids.length == 1 ? '' : 's'} uploaded successfully.',
+              '${ids.length} report${ids.length == 1 ? '' : 's'} submitted successfully.',
         ),
       );
     } on UploadReportServiceException catch (e) {

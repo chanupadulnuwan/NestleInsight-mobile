@@ -845,6 +845,7 @@ class _VisitTopBarState extends State<_VisitTopBar> {
   @override
   void initState() {
     super.initState();
+    _showOrders = widget.recentOrders.isNotEmpty;
     _syncTimer();
   }
 
@@ -853,6 +854,9 @@ class _VisitTopBarState extends State<_VisitTopBar> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.startTime != widget.startTime) {
       _syncTimer();
+    }
+    if (oldWidget.recentOrders.isEmpty && widget.recentOrders.isNotEmpty) {
+      _showOrders = true;
     }
   }
 
@@ -981,7 +985,7 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                             ),
                           ],
                           const Text(
-                            'Recent orders',
+                            'Last order details',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 10,
@@ -991,12 +995,10 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                           ),
                           if (widget.recentOrders.isNotEmpty)
                             Text(
-                              'History ▾',
+                              'Tap to hide or show history',
                               style: const TextStyle(
                                 color: Colors.white54,
                                 fontSize: 10,
-                                decoration: TextDecoration.underline,
-                                decorationColor: Colors.white54,
                               ),
                             ),
                         ],
@@ -1018,7 +1020,7 @@ class _VisitTopBarState extends State<_VisitTopBar> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Recent Orders',
+                      'Last Order And History',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 11,
@@ -1193,13 +1195,19 @@ class _RecentOrderHistoryCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '$itemCount line${itemCount == 1 ? '' : 's'}',
+              '$itemCount line${itemCount == 1 ? '' : 's'} • quantities shown in units',
               style: const TextStyle(color: Colors.white54, fontSize: 10),
             ),
             if (items.isNotEmpty) ...[
               const SizedBox(height: 6),
               ...items.take(3).map((item) {
-                final quantity = item['quantity'] ?? 0;
+                final quantityCases = (item['quantity'] as num?)?.toInt() ?? 0;
+                final unitsPerCase =
+                    (item['productsPerCase'] as num?)?.toInt() ?? 1;
+                final quantityUnits =
+                    (item['quantityUnits'] as num?)?.toInt() ??
+                    (quantityCases * unitsPerCase);
+                final quantity = quantityUnits;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text(

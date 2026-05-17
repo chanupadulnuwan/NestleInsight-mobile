@@ -219,7 +219,7 @@ class OSAProductCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Est. Sales',
+                  'Est. Sales (units)',
                   style: TextStyle(fontSize: 9, color: AppTheme.textSoft),
                 ),
                 Text(

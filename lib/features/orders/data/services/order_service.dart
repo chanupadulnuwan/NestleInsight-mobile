@@ -252,29 +252,34 @@ class OrderService {
     String? paymentMethod,
   }) async {
     try {
+      final requestBody = <String, dynamic>{
+        'items': items
+            .map(
+              (item) => <String, dynamic>{
+                'productId': item.product.id,
+                'quantity': item.quantity,
+              },
+            )
+            .toList(growable: false),
+      };
+
+      if (appliedPromotionId != null && appliedPromotionId.trim().isNotEmpty) {
+        requestBody['appliedPromotionId'] = appliedPromotionId.trim();
+      }
+      if (appliedPromotionCode != null &&
+          appliedPromotionCode.trim().isNotEmpty) {
+        requestBody['appliedPromotionCode'] = appliedPromotionCode.trim();
+      }
+      if (discountAmount != null) {
+        requestBody['discountAmount'] = discountAmount;
+      }
+      if (paymentMethod != null && paymentMethod.trim().isNotEmpty) {
+        requestBody['paymentMethod'] = paymentMethod.trim();
+      }
+
       final response = await _dio.post<Map<String, dynamic>>(
         '/orders',
-        data: <String, dynamic>{
-          'items': items
-              .map(
-                (item) => <String, dynamic>{
-                  'productId': item.product.id,
-                  'quantity': item.quantity,
-                },
-              )
-              .toList(),
-          if (appliedPromotionId != null && appliedPromotionId.trim().isNotEmpty)
-            'appliedPromotionId': appliedPromotionId.trim(),
-          if (appliedPromotionCode != null &&
-              appliedPromotionCode.trim().isNotEmpty)
-            'appliedPromotionCode': appliedPromotionCode.trim(),
-          ...?discountAmount == null
-              ? null
-              : <String, dynamic>{'discountAmount': discountAmount},
-          ...?(paymentMethod == null || paymentMethod.trim().isEmpty)
-              ? null
-              : <String, dynamic>{'paymentMethod': paymentMethod.trim()},
-        },
+        data: requestBody,
       );
 
       return OrderCreateResult.fromJson(response.data ?? <String, dynamic>{});

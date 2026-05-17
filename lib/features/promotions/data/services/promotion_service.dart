@@ -50,6 +50,31 @@ class PromotionService {
 
   final Dio _dio;
 
+  List<Promotion> _decodePromotionList(dynamic body) {
+    final List<dynamic> raw;
+    if (body is List) {
+      raw = body;
+    } else if (body is Map) {
+      final dynamic primaryList =
+          body['data'] ?? body['promotions'] ?? body['items'];
+      if (primaryList is List) {
+        raw = primaryList;
+      } else {
+        final nestedLists = body.values.whereType<List>().toList(growable: false);
+        raw = nestedLists.isEmpty
+            ? const <dynamic>[]
+            : nestedLists.first.cast<dynamic>();
+      }
+    } else {
+      raw = const <dynamic>[];
+    }
+
+    return raw
+        .whereType<Map>()
+        .map((item) => Promotion.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
+  }
+
   /// Returns active promotions scoped to [territoryId].
   ///
   /// Calls `GET /promotions/active?territoryId=<territoryId>`.
@@ -60,23 +85,7 @@ class PromotionService {
         '/promotions/active',
         queryParameters: <String, dynamic>{'territoryId': territoryId},
       );
-
-      final body = response.data;
-
-      // Backend may return a bare list or a wrapped { data: [...] } shape.
-      final List<dynamic> raw;
-      if (body is List) {
-        raw = body;
-      } else if (body is Map && body['data'] is List) {
-        raw = body['data'] as List<dynamic>;
-      } else {
-        raw = const <dynamic>[];
-      }
-
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(Promotion.fromJson)
-          .toList();
+      return _decodePromotionList(response.data);
     } on DioException catch (error) {
       throw PromotionServiceException(
         extractBackendErrorMessage(
@@ -95,22 +104,7 @@ class PromotionService {
         '/promotions/territory',
         queryParameters: <String, dynamic>{'territoryId': territoryId},
       );
-
-      final body = response.data;
-
-      final List<dynamic> raw;
-      if (body is List) {
-        raw = body;
-      } else if (body is Map && body['data'] is List) {
-        raw = body['data'] as List<dynamic>;
-      } else {
-        raw = const <dynamic>[];
-      }
-
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(Promotion.fromJson)
-          .toList();
+      return _decodePromotionList(response.data);
     } on DioException catch (error) {
       throw PromotionServiceException(
         extractBackendErrorMessage(
