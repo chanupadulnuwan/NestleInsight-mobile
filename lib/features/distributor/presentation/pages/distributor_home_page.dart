@@ -218,10 +218,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
 
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => WarehouseReturnPage(
-          assignmentId: assignment.id,
-          lorryInventory: assignment.lorryInventory,
-        ),
+        builder: (_) => WarehouseReturnPage(assignment: assignment),
       ),
     );
 
@@ -555,11 +552,11 @@ class _DistributorHomeTab extends StatelessWidget {
               Expanded(
                 child: _ActionPanel(
                   icon: Icons.warehouse_outlined,
-                  title: 'Warehouse return',
+                  title: 'End route',
                   subtitle:
-                      'Record remaining stock sent back to the warehouse.',
+                      'Review route returns, cash, and close today\'s route.',
                   onTap: onWarehouseReturnTap,
-                  accentColor: AppTheme.primaryBrownDark,
+                  accentColor: AppTheme.proceedOrderOlive,
                 ),
               ),
             ],
@@ -1112,7 +1109,7 @@ class _HeaderCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: isTablet ? 248 : 236,
+      height: isTablet ? 252 : 246,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(34),
         gradient: const LinearGradient(
@@ -1217,19 +1214,14 @@ class _HeaderCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                Row(
                   children: <Widget>[
-                    _InfoChip(
-                      icon: Icons.route_outlined,
-                      label: profile.headerLocationLabel,
-                      isTablet: isTablet,
-                    ),
-                    _InfoChip(
-                      icon: Icons.local_shipping_outlined,
-                      label: profile.vehicleHeadline,
-                      isTablet: isTablet,
+                    Flexible(
+                      child: _InfoChip(
+                        icon: Icons.route_outlined,
+                        label: profile.headerLocationLabel,
+                        isTablet: isTablet,
+                      ),
                     ),
                   ],
                 ),
@@ -1308,9 +1300,17 @@ class _MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withAlpha(216),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppTheme.outlineWarm.withAlpha(105)),
+        border: Border.all(color: Colors.white.withAlpha(150)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withAlpha(235),
+            const Color(0xFFF9F4ED).withAlpha(220),
+          ],
+        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: AppTheme.primaryBrownDark.withAlpha(10),
@@ -1380,14 +1380,21 @@ class _ProgressOverviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFFE5F5E7),
+            Color(0xFFD7EFE0),
+          ],
+        ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.outlineWarm.withAlpha(105)),
+        border: Border.all(color: const Color(0xFFAED0B7)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppTheme.primaryBrownDark.withAlpha(10),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF2F6B45).withAlpha(20),
+            blurRadius: 20,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -1410,7 +1417,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                     ? '0/0'
                     : '${assignment!.completedCount}/${assignment!.totalCount}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.primaryBrown,
+                  color: const Color(0xFF2C6A45),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1422,9 +1429,9 @@ class _ProgressOverviewCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: AppTheme.surfaceTint,
+              backgroundColor: const Color(0xFFBFDCC8),
               valueColor: const AlwaysStoppedAnimation<Color>(
-                AppTheme.primaryBrown,
+                Color(0xFF2C7A52),
               ),
             ),
           ),
@@ -1435,7 +1442,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                 child: _SummaryPill(
                   label: 'Completed',
                   value: '$completedCount',
-                  color: AppTheme.primaryBrownDark,
+                  color: const Color(0xFF2C7A52),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1443,7 +1450,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                 child: _SummaryPill(
                   label: 'Pending',
                   value: '$pendingCount',
-                  color: AppTheme.proceedOrderOlive,
+                  color: const Color(0xFF4F8B60),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1453,7 +1460,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                   value: assignment == null
                       ? 'Pending'
                       : _formatDateFromRaw(assignment!.deliveryDate),
-                  color: AppTheme.primaryBrown,
+                  color: const Color(0xFF35684B),
                 ),
               ),
             ],

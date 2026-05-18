@@ -7,12 +7,10 @@ import 'package:mobile/features/distributor/domain/delivery_assignment.dart';
 class WarehouseReturnPage extends StatefulWidget {
   const WarehouseReturnPage({
     super.key,
-    required this.assignmentId,
-    required this.lorryInventory,
+    required this.assignment,
   });
 
-  final String assignmentId;
-  final List<OrderItem> lorryInventory;
+  final DeliveryAssignment assignment;
 
   @override
   State<WarehouseReturnPage> createState() => _WarehouseReturnPageState();
@@ -20,142 +18,284 @@ class WarehouseReturnPage extends StatefulWidget {
 
 class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   final _service = DistributorService();
-  final _searchController = TextEditingController();
   final _cashReturnedController = TextEditingController();
   final _varianceReasonController = TextEditingController();
-  final List<ReturnItemInput> _items = [];
   final List<TextEditingController> _pinControllers = List.generate(
     6,
     (_) => TextEditingController(),
   );
   final List<FocusNode> _pinFocusNodes = List.generate(6, (_) => FocusNode());
 
-  bool _pinRequested = false;
-  bool _requestingPin = false;
+  bool _reviewRequested = false;
+  bool _requestingReview = false;
   bool _submitting = false;
-  String? _error;
   bool _success = false;
+  String? _error;
   String _varianceType = 'CASH_SHORT';
+  String? _earlyClosureReason;
 
-  String get _currentPin => _pinControllers.map((c) => c.text).join();
+  String get _currentPin => _pinControllers.map((controller) => controller.text).join();
 
-  List<OrderItem> get _filteredInventory {
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return widget.lorryInventory;
-    return widget.lorryInventory
-        .where((i) => i.productName.toLowerCase().contains(q))
+  List<_DisplayedReturnLine> get _shopReturnLines {
+    return widget.assignment.shopReturns
+        .expand((recordedReturn) {
+          final shopLabel = recordedReturn.shopName ?? widget.assignment.distributorName;
+          return recordedReturn.items.map(
+            (item) => _DisplayedReturnLine(
+              title: item.productName,
+              quantityLabel:
+                  '${item.quantity} ${_unitLabel(item.unitType)}',
+              reasonLabel: _formatReason(item.reason, item.reasonNote),
+              subtitle: [
+                if (shopLabel.trim().isNotEmpty) shopLabel,
+                if ((recordedReturn.orderCode ?? '').trim().isNotEmpty)
+                  recordedReturn.orderCode!,
+              ].join(' · '),
+              accentColor: const Color(0xFFB86152),
+            ),
+          );
+        })
         .toList();
+  }
+
+  List<_DisplayedReturnLine> get _unfinishedDeliveryLines {
+    return widget.assignment.orders
+        .where((order) => !order.isCompleted)
+        .expand(
+          (order) => order.items.map(
+            (item) => _DisplayedReturnLine(
+              title: item.productName,
+              quantityLabel: '${item.quantity} case(s)',
+              reasonLabel: 'Unfinished delivery',
+              subtitle: '${order.shopName} · ${order.orderCode}',
+              accentColor: AppTheme.proceedOrderOlive,
+            ),
+          ),
+        )
+        .toList();
+  }
+
+  double get _expectedCash => widget.assignment.expectedRouteCash;
+
+  double get _cashReturnedAmount =>
+      double.tryParse(_cashReturnedController.text.trim()) ?? -1;
+
+  bool get _hasCashMismatch =>
+      _cashReturnedAmount >= 0 &&
+      (_cashReturnedAmount - _expectedCash).abs() >= 0.01;
+
+  @override
+  void initState() {
+    super.initState();
+    _cashReturnedController.text = _expectedCash.toStringAsFixed(2);
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
     _cashReturnedController.dispose();
     _varianceReasonController.dispose();
-    for (final c in _pinControllers) {
-      c.dispose();
+    for (final controller in _pinControllers) {
+      controller.dispose();
     }
-    for (final f in _pinFocusNodes) {
-      f.dispose();
+    for (final focusNode in _pinFocusNodes) {
+      focusNode.dispose();
     }
     super.dispose();
   }
 
-  void _addItem(OrderItem product) {
-    final alreadyAdded = _items.any(
-      (i) =>
-          (i.productId != null && i.productId == product.productId) ||
-          i.productNameSnapshot == product.productName,
-    );
-    if (alreadyAdded) return;
-    setState(() {
-      _items.add(
-        ReturnItemInput(
-          productId: product.productId,
-          productNameSnapshot: product.productName,
-          quantity: product.quantity,
-          unitType: 'CASE',
-          reason: 'SELLABLE_RETURN',
-          unitPrice: product.unitPrice,
-        ),
-      );
-    });
-  }
+  Future<void> _requestReview() async {
+    final cashReturnedAmount = _cashReturnedAmount;
+    if (cashReturnedAmount < 0) {
+      setState(() {
+        _error = 'Enter the cash amount you are returning today.';
+      });
+      return;
+    }
 
-  Future<void> _requestPin() async {
-    setState(() {
-      _requestingPin = true;
-      _error = null;
-    });
-    try {
-      await _service.requestWarehouseReturnPin(
-        assignmentId: widget.assignmentId,
+    String? earlyClosureReason = _earlyClosureReason;
+    if (widget.assignment.remainingStopsCount > 0) {
+      final shouldContinue = await _confirmEarlyClosure();
+      if (!shouldContinue || !mounted) {
+        return;
+      }
+
+      earlyClosureReason = await _promptForReason(
+        title: 'Why are you ending the route now?',
+        hintText: 'Explain why the remaining shops could not be completed.',
+        initialValue: _earlyClosureReason,
       );
-      if (mounted) {
-        setState(() {
-          _pinRequested = true;
-          _requestingPin = false;
-        });
+
+      if (!mounted || earlyClosureReason == null) {
+        return;
       }
-    } on DistributorServiceException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _requestingPin = false;
-        });
+    }
+
+    setState(() {
+      _requestingReview = true;
+      _error = null;
+      _earlyClosureReason = earlyClosureReason;
+    });
+
+    try {
+      final message = await _service.requestWarehouseReturnPin(
+        assignmentId: widget.assignment.id,
+        cashReturnedAmount: cashReturnedAmount,
+        cashVarianceType: _hasCashMismatch ? _varianceType : null,
+        cashVarianceReason:
+            _hasCashMismatch ? _varianceReasonController.text.trim() : null,
+        earlyClosureReason: _earlyClosureReason,
+      );
+
+      if (!mounted) {
+        return;
       }
+
+      setState(() {
+        _reviewRequested = true;
+        _requestingReview = false;
+      });
+
+      _showMessage(message);
+    } on DistributorServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = error.message;
+        _requestingReview = false;
+      });
     }
   }
 
   Future<void> _submit() async {
-    if (_items.isEmpty) {
-      setState(() {
-        _error = 'Add at least one item to return.';
-      });
-      return;
-    }
     final pin = _currentPin;
     if (pin.length != 6) {
       setState(() {
-        _error = 'Enter the 6-digit PIN from your Territory Manager.';
+        _error = 'Enter the 6-digit end-route PIN from your Territory Manager.';
       });
       return;
     }
-    final cashReturnedAmount =
-        double.tryParse(_cashReturnedController.text.trim()) ?? -1;
+
+    final cashReturnedAmount = _cashReturnedAmount;
     if (cashReturnedAmount < 0) {
       setState(() {
-        _error = 'Enter the amount of cash returned to the warehouse.';
+        _error = 'Enter the cash amount you are returning today.';
       });
       return;
     }
+
     setState(() {
       _submitting = true;
       _error = null;
     });
+
     try {
-      await _service.submitReturn(
-        assignmentId: widget.assignmentId,
+      final message = await _service.submitReturn(
+        assignmentId: widget.assignment.id,
         tmPin: pin,
-        items: _items,
+        items: const <ReturnItemInput>[],
         cashReturnedAmount: cashReturnedAmount,
-        cashVarianceType: _varianceType,
-        cashVarianceReason: _varianceReasonController.text.trim(),
+        cashVarianceType: _hasCashMismatch ? _varianceType : null,
+        cashVarianceReason:
+            _hasCashMismatch ? _varianceReasonController.text.trim() : null,
+        earlyClosureReason: _earlyClosureReason,
       );
-      if (mounted) {
-        setState(() {
-          _success = true;
-          _submitting = false;
-        });
+
+      if (!mounted) {
+        return;
       }
-    } on DistributorServiceException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _submitting = false;
-        });
+
+      setState(() {
+        _success = true;
+        _submitting = false;
+      });
+
+      _showMessage(message);
+    } on DistributorServiceException catch (error) {
+      if (!mounted) {
+        return;
       }
+
+      setState(() {
+        _error = error.message;
+        _submitting = false;
+      });
     }
+  }
+
+  Future<bool> _confirmEarlyClosure() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Remaining shops still need delivery'),
+          content: Text(
+            'There are ${widget.assignment.remainingStopsCount} pending stop(s) left on today\'s route. Are you sure you want to end the route now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('No'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Yes, continue'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  Future<String?> _promptForReason({
+    required String title,
+    required String hintText,
+    String? initialValue,
+  }) async {
+    final controller = TextEditingController(text: initialValue ?? '');
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: hintText,
+              alignLabelWithHint: true,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop(value);
+              },
+              child: const Text('Save reason'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return reason;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -167,7 +307,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
       appBar: AppBar(
         backgroundColor: AppTheme.primaryBrownDark,
         foregroundColor: Colors.white,
-        title: const Text('Return to Warehouse'),
+        title: const Text('End Route'),
       ),
       body: _success
           ? _SuccessView(onDone: () => Navigator.of(context).pop(true))
@@ -176,260 +316,57 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceTint,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.outlineWarm),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warehouse_outlined,
-                          color: AppTheme.primaryBrown,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Select unsold or returned products from the lorry to bring back to the warehouse.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textDark,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  _BannerCard(
+                    icon: Icons.assignment_turned_in_outlined,
+                    title: 'Route close review',
+                    message:
+                        'Recorded shop-owner returns and unfinished deliveries are listed below so the Territory Manager can review the full route settlement before sharing the PIN.',
                   ),
                   const SizedBox(height: 20),
-
-                  Text(
-                    'Products on Lorry',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textDark,
-                    ),
+                  _SummaryStrip(
+                    expectedCash: _expectedCash,
+                    deliveredCount: widget.assignment.completedCount,
+                    pendingCount: widget.assignment.remainingStopsCount,
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      hintText: 'Search product…',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (_) => setState(() {}),
+                  const SizedBox(height: 20),
+                  _SectionTitle(
+                    title: 'Recorded shop returns',
+                    subtitle:
+                        'These are the products you already logged while delivering to shops.',
                   ),
                   const SizedBox(height: 10),
-
-                  if (widget.lorryInventory.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'No products remaining on lorry.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSoft,
-                        ),
-                      ),
+                  if (_shopReturnLines.isEmpty)
+                    const _EmptyStateCard(
+                      message:
+                          'No shop-owner returns have been recorded on this route yet.',
                     )
                   else
-                    ...(_filteredInventory.map((product) {
-                      final alreadyAdded = _items.any(
-                        (i) =>
-                            (i.productId != null &&
-                                i.productId == product.productId) ||
-                            i.productNameSnapshot == product.productName,
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: alreadyAdded
-                                ? AppTheme.surfaceTint
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: alreadyAdded
-                                  ? AppTheme.primaryBrown.withAlpha(180)
-                                  : AppTheme.outlineWarm,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      product.productName,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color: AppTheme.textDark,
-                                          ),
-                                    ),
-                                    Text(
-                                      '${product.quantity} case(s)',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(color: AppTheme.textSoft),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (alreadyAdded)
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: AppTheme.primaryBrown,
-                                  size: 22,
-                                )
-                              else
-                                IconButton(
-                                  onPressed: () => _addItem(product),
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  color: AppTheme.primaryBrown,
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    })),
-
-                  if (_items.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                  Text(
-                      'Return List',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sellable returns go back into warehouse stock. Damaged or expired items stay out of sellable stock.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSoft,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ..._items.asMap().entries.map((entry) {
-                      final i = entry.key;
-                      final item = entry.value;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppTheme.outlineWarm),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.productNameSnapshot,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.textDark,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    size: 18,
-                                    color: Color(0xFF9B4B46),
-                                  ),
-                                  onPressed: () =>
-                                      setState(() => _items.removeAt(i)),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: item.quantity.toString(),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Qty (cases)',
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly,
-                                    ],
-                                    onChanged: (v) {
-                                      item.quantity = int.tryParse(v) ?? 1;
-                                      setState(() {});
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            DropdownButtonFormField<String>(
-                              initialValue: item.reason,
-                              decoration: const InputDecoration(
-                                labelText: 'Return type',
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'SELLABLE_RETURN',
-                                  child: Text('Sellable return'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'DAMAGED',
-                                  child: Text('Damaged'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'EXPIRED',
-                                  child: Text('Expired'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'OTHER',
-                                  child: Text('Other'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  item.reason = value;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-
+                    ..._shopReturnLines.map(_ReturnLineCard.new),
+                  const SizedBox(height: 20),
+                  _SectionTitle(
+                    title: 'Undelivered orders returning to warehouse',
+                    subtitle:
+                        'Any remaining assigned orders are treated as unfinished delivery stock returning with the lorry.',
+                  ),
+                  const SizedBox(height: 10),
+                  if (_unfinishedDeliveryLines.isEmpty)
+                    const _EmptyStateCard(
+                      message:
+                          'All assigned deliveries are completed, so there are no unfinished-order returns.',
+                    )
+                  else
+                    ..._unfinishedDeliveryLines.map(_ReturnLineCard.new),
                   const SizedBox(height: 24),
                   Text(
-                    'Cash Returned to Warehouse',
+                    'Returning cash',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
                       color: AppTheme.textDark,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Enter the cash handed back with this route. If it does not match the expected route cash, add the mismatch type and reason below.',
+                    'Expected today amount: LKR ${_expectedCash.toStringAsFixed(2)}. This is based on completed deliveries minus the value of the recorded shop-owner returns above.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSoft,
                     ),
@@ -443,9 +380,10 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Cash returned (LKR)',
-                      prefixIcon: Icon(Icons.payments_outlined),
+                      hintText: _expectedCash.toStringAsFixed(2),
+                      prefixIcon: const Icon(Icons.payments_outlined),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -488,34 +426,58 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     controller: _varianceReasonController,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: 'Mismatch reason (required only when cash does not match)',
+                      labelText: 'Mismatch reason',
+                      hintText:
+                          'Required only when the returned cash does not match the expected amount.',
                       alignLabelWithHint: true,
                     ),
                   ),
+                  if (_hasCashMismatch) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Cash mismatch: LKR ${(_cashReturnedAmount - _expectedCash).toStringAsFixed(2)}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.rejectOrderRed,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const Divider(color: AppTheme.outlineWarm),
                   const SizedBox(height: 16),
-
                   Text(
-                    'Territory Manager Verification',
+                    'Territory Manager review',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
                       color: AppTheme.textDark,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Request a PIN — it will be sent to your territory manager\'s activity center. They will share the 6-digit code with you to confirm the return.',
+                    _reviewRequested
+                        ? 'Your review request has been sent. Once the Territory Manager checks the cash and return list, they can tell you the 6-digit end-route PIN.'
+                        : 'Send the route-close review to your Territory Manager first. They will check the returned products, undelivered orders, and cash before generating the end-route PIN.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSoft,
                     ),
                   ),
+                  if (_earlyClosureReason != null &&
+                      _earlyClosureReason!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _BannerCard(
+                      icon: Icons.info_outline,
+                      title: 'Early closure reason',
+                      message: _earlyClosureReason!,
+                      color: const Color(0xFFF0FFF4),
+                      borderColor: const Color(0xFFB7D9C2),
+                      iconColor: const Color(0xFF1E7A52),
+                    ),
+                  ],
                   const SizedBox(height: 14),
-
-                  if (!_pinRequested) ...[
+                  if (!_reviewRequested)
                     FilledButton.icon(
-                      onPressed: _requestingPin ? null : _requestPin,
-                      icon: _requestingPin
+                      onPressed: _requestingReview ? null : _requestReview,
+                      icon: _requestingReview
                           ? const SizedBox(
                               width: 18,
                               height: 18,
@@ -524,17 +486,17 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.key_outlined),
-                      label: const Text('Request Warehouse Return PIN'),
+                          : const Icon(Icons.send_outlined),
+                      label: const Text('Send End Route Review to TM'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryBrown,
-                        minimumSize: const Size(double.infinity, 52),
+                        minimumSize: const Size(double.infinity, 54),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                       ),
-                    ),
-                  ] else ...[
+                    )
+                  else ...[
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -552,7 +514,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'PIN sent to your Territory Manager. Ask them for the 6-digit code.',
+                              'Review request sent. Ask your Territory Manager for the 6-digit end-route PIN after they finish checking the settlement.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: const Color(0xFF1E5C3A),
                               ),
@@ -602,10 +564,10 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
-                            onChanged: (v) {
-                              if (v.length == 1 && index < 5) {
+                            onChanged: (value) {
+                              if (value.length == 1 && index < 5) {
                                 _pinFocusNodes[index + 1].requestFocus();
-                              } else if (v.isEmpty && index > 0) {
+                              } else if (value.isEmpty && index > 0) {
                                 _pinFocusNodes[index - 1].requestFocus();
                               }
                               setState(() {});
@@ -617,8 +579,8 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     const SizedBox(height: 8),
                     Center(
                       child: TextButton(
-                        onPressed: _requestPin,
-                        child: const Text('Resend to TM'),
+                        onPressed: _requestReview,
+                        child: const Text('Resend review to TM'),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -633,9 +595,9 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : const Icon(Icons.check_outlined),
+                          : const Icon(Icons.check_circle_outline),
                       label: const Text(
-                        'Submit Return & Close Trip',
+                        'End Route',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -650,7 +612,6 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                       ),
                     ),
                   ],
-
                   if (_error != null) ...[
                     const SizedBox(height: 14),
                     Container(
@@ -675,10 +636,353 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
             ),
     );
   }
+
+  String _unitLabel(String? unitType) {
+    return unitType?.trim().toUpperCase() == 'ITEM' ? 'product(s)' : 'case(s)';
+  }
+
+  String _formatReason(String reason, String? note) {
+    final normalized = reason
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'[_\s]+'))
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
+    if (note == null || note.trim().isEmpty) {
+      return normalized;
+    }
+    return '$normalized · ${note.trim()}';
+  }
+}
+
+class _DisplayedReturnLine {
+  const _DisplayedReturnLine({
+    required this.title,
+    required this.quantityLabel,
+    required this.reasonLabel,
+    required this.subtitle,
+    required this.accentColor,
+  });
+
+  final String title;
+  final String quantityLabel;
+  final String reasonLabel;
+  final String subtitle;
+  final Color accentColor;
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: AppTheme.textDark,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+        ),
+      ],
+    );
+  }
+}
+
+class _BannerCard extends StatelessWidget {
+  const _BannerCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.color = AppTheme.surfaceTint,
+    this.borderColor = AppTheme.outlineWarm,
+    this.iconColor = AppTheme.primaryBrown,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color color;
+  final Color borderColor;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(180),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryStrip extends StatelessWidget {
+  const _SummaryStrip({
+    required this.expectedCash,
+    required this.deliveredCount,
+    required this.pendingCount,
+  });
+
+  final double expectedCash;
+  final int deliveredCount;
+  final int pendingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniStatCard(
+            label: 'Expected cash',
+            value: 'LKR ${expectedCash.toStringAsFixed(2)}',
+            accentColor: AppTheme.proceedOrderOlive,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _MiniStatCard(
+            label: 'Delivered',
+            value: '$deliveredCount',
+            accentColor: AppTheme.primaryBrownDark,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _MiniStatCard(
+            label: 'Remaining',
+            value: '$pendingCount',
+            accentColor: AppTheme.rejectOrderRed,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniStatCard extends StatelessWidget {
+  const _MiniStatCard({
+    required this.label,
+    required this.value,
+    required this.accentColor,
+  });
+
+  final String label;
+  final String value;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.outlineWarm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSoft,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: accentColor,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReturnLineCard extends StatelessWidget {
+  const _ReturnLineCard(this.line);
+
+  final _DisplayedReturnLine line;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.outlineWarm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: line.accentColor.withAlpha(20),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.keyboard_return_outlined,
+              color: line.accentColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  line.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  line.subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSoft,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _TinyTag(label: line.quantityLabel, color: line.accentColor),
+                    _TinyTag(label: line.reasonLabel, color: AppTheme.textSoft),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TinyTag extends StatelessWidget {
+  const _TinyTag({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyStateCard extends StatelessWidget {
+  const _EmptyStateCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.outlineWarm),
+      ),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+      ),
+    );
+  }
 }
 
 class _SuccessView extends StatelessWidget {
   const _SuccessView({required this.onDone});
+
   final VoidCallback onDone;
 
   @override
@@ -689,10 +993,14 @@ class _SuccessView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warehouse, color: AppTheme.primaryBrown, size: 72),
+            Icon(
+              Icons.check_circle_outline,
+              color: AppTheme.proceedOrderOlive,
+              size: 72,
+            ),
             const SizedBox(height: 16),
             Text(
-              'Trip Closed Successfully',
+              'Route closed successfully',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
@@ -701,7 +1009,7 @@ class _SuccessView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'All returned products have been logged and your trip has been marked as completed.',
+              'The end-route cash settlement is saved and the return review is complete.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,

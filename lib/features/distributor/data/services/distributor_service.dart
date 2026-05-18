@@ -114,13 +114,26 @@ class DistributorService {
 
   Future<String> requestWarehouseReturnPin({
     required String assignmentId,
+    required double cashReturnedAmount,
+    String? cashVarianceType,
+    String? cashVarianceReason,
+    String? earlyClosureReason,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/delivery-assignments/$assignmentId/request-warehouse-return-pin',
+        data: {
+          'cashReturnedAmount': cashReturnedAmount,
+          if (cashVarianceType != null && cashVarianceType.trim().isNotEmpty)
+            'cashVarianceType': cashVarianceType.trim(),
+          if (cashVarianceReason != null && cashVarianceReason.trim().isNotEmpty)
+            'cashVarianceReason': cashVarianceReason.trim(),
+          if (earlyClosureReason != null && earlyClosureReason.trim().isNotEmpty)
+            'earlyClosureReason': earlyClosureReason.trim(),
+        },
       );
       return response.data?['message'] as String? ??
-          'PIN sent to Territory Manager.';
+          'End-route review sent to Territory Manager.';
     } on DioException catch (e) {
       throw DistributorServiceException(
         extractBackendErrorMessage(
@@ -139,6 +152,7 @@ class DistributorService {
     required double cashReturnedAmount,
     String? cashVarianceType,
     String? cashVarianceReason,
+    String? earlyClosureReason,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -150,6 +164,8 @@ class DistributorService {
             'cashVarianceType': cashVarianceType.trim(),
           if (cashVarianceReason != null && cashVarianceReason.trim().isNotEmpty)
             'cashVarianceReason': cashVarianceReason.trim(),
+          if (earlyClosureReason != null && earlyClosureReason.trim().isNotEmpty)
+            'earlyClosureReason': earlyClosureReason.trim(),
           'items': items.map((i) => i.toJson()).toList(),
         },
       );

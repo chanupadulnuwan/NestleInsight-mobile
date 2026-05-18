@@ -89,6 +89,8 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
           unitType: 'CASE',
           reason: 'EXPIRED',
           unitPrice: product.unitPrice,
+          itemUnitPrice: product.resolvedItemUnitPrice,
+          productsPerCase: product.productsPerCase,
         ),
       );
     });
@@ -223,6 +225,13 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Record items the shop owner is giving back from this delivery or older stock. Use Case for sealed cases and Item for loose products.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSoft,
                     ),
                   ),
                   const SizedBox(height: 8),
