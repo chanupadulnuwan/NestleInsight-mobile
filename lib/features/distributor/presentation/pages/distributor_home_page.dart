@@ -137,6 +137,15 @@ class _DistributorHomePageState extends State<DistributorHomePage>
         _error = error.message;
         _loading = false;
       });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = 'Unable to load the distributor dashboard right now.';
+        _loading = false;
+      });
     }
   }
 

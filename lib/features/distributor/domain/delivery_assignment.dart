@@ -16,12 +16,11 @@ class OrderItem {
       id: json['id'] as String? ?? '',
       productId: json['productId'] as String?,
       productName: json['productName'] as String? ?? '--',
-      quantity: json['quantity'] as int? ?? 0,
-      lineTotal: (json['lineTotal'] as num?)?.toDouble() ?? 0,
-      unitPrice:
-          ((json['casePrice'] ?? json['unitPrice']) as num?)?.toDouble() ?? 0,
-      itemUnitPrice: (json['itemUnitPrice'] as num?)?.toDouble() ?? 0,
-      productsPerCase: json['productsPerCase'] as int? ?? 1,
+      quantity: _readInt(json['quantity']),
+      lineTotal: _readDouble(json['lineTotal']),
+      unitPrice: _readDouble(json['casePrice'] ?? json['unitPrice']),
+      itemUnitPrice: _readDouble(json['itemUnitPrice']),
+      productsPerCase: _readInt(json['productsPerCase'], fallback: 1),
       packSize: json['packSize'] as String?,
     );
   }
@@ -80,19 +79,19 @@ class AssignmentOrder {
       shopName: json['shopName'] as String? ?? '--',
       shopPhone: json['shopPhone'] as String?,
       shopAddress: json['shopAddress'] as String?,
-      shopLatitude: (json['shopLatitude'] as num?)?.toDouble(),
-      shopLongitude: (json['shopLongitude'] as num?)?.toDouble(),
-      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
+      shopLatitude: _readNullableDouble(json['shopLatitude']),
+      shopLongitude: _readNullableDouble(json['shopLongitude']),
+      totalAmount: _readDouble(json['totalAmount']),
       currencyCode: json['currencyCode'] as String? ?? 'LKR',
       paymentMethod: json['paymentMethod'] as String? ?? 'STANDARD',
       appliedPromotionCode: json['appliedPromotionCode'] as String?,
       subtotalBeforeDiscount:
-          (json['subtotalBeforeDiscount'] as num?)?.toDouble(),
+          _readNullableDouble(json['subtotalBeforeDiscount']),
       promotionDiscountTotal:
-          (json['promotionDiscountTotal'] as num?)?.toDouble(),
-      totalAfterDiscount: (json['totalAfterDiscount'] as num?)?.toDouble(),
+          _readNullableDouble(json['promotionDiscountTotal']),
+      totalAfterDiscount: _readNullableDouble(json['totalAfterDiscount']),
       status: json['status'] as String? ?? 'UNKNOWN',
-      sortOrder: json['sortOrder'] as int? ?? 0,
+      sortOrder: _readInt(json['sortOrder']),
       items: rawItems
           .map((i) => OrderItem.fromJson(Map<String, dynamic>.from(i as Map)))
           .toList(),
@@ -138,7 +137,7 @@ class RecordedReturnItem {
       id: json['id'] as String? ?? '',
       productId: json['productId'] as String?,
       productName: json['productName'] as String? ?? '--',
-      quantity: json['quantity'] as int? ?? 0,
+      quantity: _readInt(json['quantity']),
       reason: json['reason'] as String? ?? '',
       unitType: json['unitType'] as String?,
       reasonNote: json['reasonNote'] as String?,
@@ -180,7 +179,7 @@ class RecordedReturn {
       returnType: json['returnType'] as String? ?? 'WAREHOUSE',
       tmVerified: json['tmVerified'] as bool? ?? false,
       verificationNote: json['verificationNote'] as String?,
-      estimatedValue: (json['estimatedValue'] as num?)?.toDouble() ?? 0,
+      estimatedValue: _readDouble(json['estimatedValue']),
       items: rawItems
           .map(
             (item) => RecordedReturnItem.fromJson(
@@ -238,15 +237,15 @@ class DeliveryAssignment {
       distributorName: json['distributorName'] as String? ?? '',
       vehicleId: json['vehicleId'] as String?,
       vehicleLabel: json['vehicleLabel'] as String?,
-      vehicleCapacityCases: json['vehicleCapacityCases'] as int?,
+      vehicleCapacityCases: _readNullableInt(json['vehicleCapacityCases']),
       vehicleRegistrationNumber: json['vehicleRegistrationNumber'] as String?,
       vehicleType: json['vehicleType'] as String?,
       deliveryDate: json['deliveryDate'] as String? ?? '',
       status: json['status'] as String? ?? 'ACTIVE',
       notes: json['notes'] as String?,
-      expectedCashAmount: (json['expectedCashAmount'] as num?)?.toDouble(),
-      cashReturnedAmount: (json['cashReturnedAmount'] as num?)?.toDouble(),
-      cashVarianceAmount: (json['cashVarianceAmount'] as num?)?.toDouble(),
+      expectedCashAmount: _readNullableDouble(json['expectedCashAmount']),
+      cashReturnedAmount: _readNullableDouble(json['cashReturnedAmount']),
+      cashVarianceAmount: _readNullableDouble(json['cashVarianceAmount']),
       cashVarianceType: json['cashVarianceType'] as String?,
       cashVarianceReason: json['cashVarianceReason'] as String?,
       settlementCompletedAt: DateTime.tryParse(
@@ -413,4 +412,56 @@ class ReturnItemInput {
     }
     return (unitPrice ?? 0) * quantity;
   }
+}
+
+double _readDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value.trim()) ?? fallback;
+  }
+  return fallback;
+}
+
+double? _readNullableDouble(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value.trim());
+  }
+  return null;
+}
+
+int _readInt(dynamic value, {int fallback = 0}) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value.trim()) ?? fallback;
+  }
+  return fallback;
+}
+
+int? _readNullableInt(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value.trim());
+  }
+  return null;
 }

@@ -32,6 +32,10 @@ class DistributorService {
         ),
         code: extractBackendErrorCode(e),
       );
+    } catch (_) {
+      throw const DistributorServiceException(
+        'Unable to read the assignment data right now. Please refresh again.',
+      );
     }
   }
 
