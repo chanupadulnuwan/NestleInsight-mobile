@@ -58,8 +58,9 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
 
     final warehouse = user?['warehouse'];
     if (warehouse is Map) {
-      final nestedWarehouseTerritoryId =
-          warehouse['territoryId']?.toString().trim();
+      final nestedWarehouseTerritoryId = warehouse['territoryId']
+          ?.toString()
+          .trim();
       if (nestedWarehouseTerritoryId != null &&
           nestedWarehouseTerritoryId.isNotEmpty) {
         return nestedWarehouseTerritoryId;
@@ -70,10 +71,8 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   }
 
   PromotionCubit _createPromotionCubit(String territoryId) {
-    return PromotionCubit(
-      territoryId: territoryId,
-      service: PromotionService(),
-    )..loadPromotions();
+    return PromotionCubit(territoryId: territoryId, service: PromotionService())
+      ..loadPromotions();
   }
 
   Future<void> _refreshUserContext() async {
@@ -191,9 +190,9 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   }
 
   Future<void> _openInsightsPage() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const InsightsPage()),
-    );
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute<void>(builder: (_) => const InsightsPage()));
   }
 
   Future<void> _openChangePasswordSheet() async {
@@ -459,6 +458,8 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Color get _floatingCartColor => const Color(0xFF616A41);
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -476,32 +477,34 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
                 backgroundColor: Colors.white,
                 floatingActionButtonLocation:
                     FloatingActionButtonLocation.startFloat,
-                floatingActionButton: Padding(
-                  padding: EdgeInsets.only(left: isTablet ? 10 : 2, bottom: 14),
-                  child: FilledButton.icon(
-                    onPressed: _openFeedbackSheet,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.primaryBrownDark,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 48),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 16 : 14,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 17),
-                    label: Text(
-                      'Feedback',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+                floatingActionButton: _selectedIndex == 0
+                    ? Padding(
+                        padding: EdgeInsets.only(
+                          left: isTablet ? 10 : 2,
+                          bottom: 14,
+                        ),
+                        child: IconButton.filled(
+                          onPressed: () => _showCartSideSheet(isTablet),
+                          style: IconButton.styleFrom(
+                            backgroundColor: _floatingCartColor,
+                            foregroundColor: Colors.white,
+                            minimumSize: Size(
+                              isTablet ? 60 : 56,
+                              isTablet ? 60 : 56,
+                            ),
+                            fixedSize: Size(
+                              isTablet ? 60 : 56,
+                              isTablet ? 60 : 56,
+                            ),
+                            shape: const CircleBorder(),
+                          ),
+                          icon: Icon(
+                            Icons.shopping_cart_outlined,
+                            size: isTablet ? 28 : 26,
+                          ),
+                        ),
+                      )
+                    : null,
                 bottomNavigationBar: _BottomBar(
                   isTablet: isTablet,
                   selectedIndex: _selectedIndex,
@@ -542,6 +545,7 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
                             onProceedOrderTap: _openOrderSummary,
                             onSecurityTap: _openChangePasswordSheet,
                             onInsightsTap: _openInsightsPage,
+                            onFeedbackTap: _openFeedbackSheet,
                             onShowMessage: _showMessage,
                           ),
                         ),
@@ -571,6 +575,7 @@ class _TabBody extends StatelessWidget {
     required this.onProceedOrderTap,
     required this.onSecurityTap,
     required this.onInsightsTap,
+    required this.onFeedbackTap,
     required this.onShowMessage,
   });
 
@@ -585,6 +590,7 @@ class _TabBody extends StatelessWidget {
   final VoidCallback onProceedOrderTap;
   final VoidCallback onSecurityTap;
   final VoidCallback onInsightsTap;
+  final VoidCallback onFeedbackTap;
   final ValueChanged<String> onShowMessage;
 
   @override
@@ -604,6 +610,7 @@ class _TabBody extends StatelessWidget {
           profile: profile,
           onSecurityTap: onSecurityTap,
           onInsightsTap: onInsightsTap,
+          onFeedbackTap: onFeedbackTap,
         );
       case 0:
       default:

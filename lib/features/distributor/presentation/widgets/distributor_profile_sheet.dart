@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/form_validators.dart';
+import 'package:mobile/features/auth/presentation/widgets/custom_text_field.dart';
 import 'package:mobile/features/distributor/domain/delivery_assignment.dart';
+import 'package:mobile/features/profile/data/services/profile_service.dart';
+import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
 
 class DistributorProfileData {
   const DistributorProfileData({
@@ -157,182 +161,504 @@ class DistributorProfileData {
     }
     return 'Sri Lanka';
   }
+
+  DistributorProfileData withEditableProfile(ShopOwnerProfile profile) {
+    return DistributorProfileData(
+      username: profile.username,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      phoneNumber: profile.phoneNumber,
+      email: profile.email,
+      territory: profile.territory ?? territory,
+      warehouse: profile.warehouse ?? warehouse,
+      address: profile.address,
+      assignmentStatus: assignmentStatus,
+      deliveryDateLabel: deliveryDateLabel,
+      vehicleLabel: vehicleLabel,
+      vehicleRegistrationNumber: vehicleRegistrationNumber,
+      distributorName: distributorName,
+    );
+  }
+
+  Map<String, dynamic> toUserMap() {
+    return <String, dynamic>{
+      'username': username,
+      'firstName': firstName,
+      'lastName': lastName,
+      'phoneNumber': phoneNumber,
+      'email': email,
+      'address': address,
+      'territory': territory,
+      'territoryName': territory,
+      'warehouse': warehouse,
+      'warehouseName': warehouse,
+    };
+  }
 }
 
-class DistributorProfileSheet extends StatelessWidget {
+class DistributorProfileSheet extends StatefulWidget {
   const DistributorProfileSheet({
     super.key,
     required this.profile,
     required this.onLogoutRequested,
+    required this.onProfileSaved,
+    this.profileService,
   });
 
   final DistributorProfileData profile;
   final Future<void> Function() onLogoutRequested;
+  final ValueChanged<DistributorProfileData> onProfileSaved;
+  final ProfileService? profileService;
 
-  Future<void> _handleLogout(BuildContext context) async {
+  @override
+  State<DistributorProfileSheet> createState() => _DistributorProfileSheetState();
+}
+
+class _DistributorProfileSheetState extends State<DistributorProfileSheet> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _usernameController;
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _phoneNumberController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _territoryController;
+  late final TextEditingController _warehouseController;
+  late final TextEditingController _addressController;
+
+  late final ProfileService _profileService;
+  late DistributorProfileData _profile;
+  late ShopOwnerProfile _editableProfile;
+
+  bool _isEditing = false;
+  bool _isLoadingProfile = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileService = widget.profileService ?? ProfileService();
+    _profile = widget.profile;
+    _editableProfile = _seedEditableProfile(widget.profile);
+
+    _usernameController = TextEditingController();
+    _firstNameController = TextEditingController();
+    _lastNameController = TextEditingController();
+    _phoneNumberController = TextEditingController();
+    _emailController = TextEditingController();
+    _territoryController = TextEditingController();
+    _warehouseController = TextEditingController();
+    _addressController = TextEditingController();
+
+    _applyProfile(_editableProfile);
+    _refreshProfile();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneNumberController.dispose();
+    _emailController.dispose();
+    _territoryController.dispose();
+    _warehouseController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  ShopOwnerProfile _seedEditableProfile(DistributorProfileData profile) {
+    return ShopOwnerProfile(
+      username: profile.username,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      phoneNumber: profile.phoneNumber,
+      email: profile.email,
+      shopName: '',
+      address: profile.address,
+      territory: profile.territory,
+      warehouse: profile.warehouse,
+    );
+  }
+
+  Future<void> _refreshProfile() async {
+    setState(() {
+      _isLoadingProfile = true;
+    });
+
+    try {
+      final result = await _profileService.getCurrentProfile();
+
+      if (!mounted) {
+        return;
+      }
+
+      final nextProfile = _profile.withEditableProfile(result.profile);
+      setState(() {
+        _editableProfile = result.profile;
+        _profile = nextProfile;
+        _applyProfile(result.profile);
+      });
+      widget.onProfileSaved(nextProfile);
+    } on ProfileServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingProfile = false;
+        });
+      }
+    }
+  }
+
+  void _applyProfile(ShopOwnerProfile profile) {
+    _usernameController.text = profile.username;
+    _firstNameController.text = profile.firstName;
+    _lastNameController.text = profile.lastName;
+    _phoneNumberController.text = profile.phoneNumber;
+    _emailController.text = profile.email;
+    _territoryController.text =
+        profile.territory?.trim().isNotEmpty == true
+            ? profile.territory!.trim()
+            : _profile.territoryLabel;
+    _warehouseController.text =
+        profile.warehouse?.trim().isNotEmpty == true
+            ? profile.warehouse!.trim()
+            : _profile.warehouseLabel;
+    _addressController.text = profile.address;
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _applyProfile(_editableProfile);
+    });
+  }
+
+  Future<void> _saveProfile() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final result = await _profileService.updateCurrentProfile(
+        username: _usernameController.text,
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        phoneNumber: _phoneNumberController.text,
+        email: _emailController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final nextProfile = _profile.withEditableProfile(result.profile);
+      setState(() {
+        _isEditing = false;
+        _editableProfile = result.profile;
+        _profile = nextProfile;
+        _applyProfile(result.profile);
+      });
+      widget.onProfileSaved(nextProfile);
+      _showMessage(result.message);
+    } on ProfileServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleLogout() async {
     Navigator.of(context).pop();
-    await onLogoutRequested();
+    await widget.onLogoutRequested();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: AppTheme.textDark,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditableField({
+    required String label,
+    required TextEditingController controller,
+    required String? Function(String?) validator,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    TextInputAction? textInputAction,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: CustomTextField(
+        labelText: label,
+        controller: controller,
+        validator: validator,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        prefixIcon: Icon(icon),
+        readOnly: !_isEditing,
+        enabled: !_isSaving,
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    int maxLines = 1,
+    String? helperText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: CustomTextField(
+        labelText: label,
+        controller: controller,
+        prefixIcon: Icon(icon),
+        helperText: helperText,
+        maxLines: maxLines,
+        readOnly: true,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(bottom: bottomInset),
         child: FractionallySizedBox(
-          heightFactor: 0.86,
+          heightFactor: 0.92,
           child: Material(
             color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            child: Column(
-              children: <Widget>[
-                const SizedBox(height: 12),
-                Container(
-                  width: 54,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: AppTheme.outlineWarm,
-                    borderRadius: BorderRadius.circular(999),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: <Widget>[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 54,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.outlineWarm,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                    child: Row(
                       children: <Widget>[
-                        _ProfileHero(profile: profile),
-                        const SizedBox(height: 22),
-                        _SectionTitle(title: 'Account'),
-                        _InfoCard(
-                          children: <Widget>[
-                            _InfoRow(
-                              icon: Icons.badge_outlined,
-                              label: 'Username',
-                              value: profile.username.isNotEmpty
-                                  ? profile.username
-                                  : 'Not available',
-                            ),
-                            _InfoRow(
-                              icon: Icons.mail_outline,
-                              label: 'Email',
-                              value: profile.emailLabel,
-                            ),
-                            _InfoRow(
-                              icon: Icons.phone_outlined,
-                              label: 'Phone',
-                              value: profile.phoneLabel,
-                            ),
-                            _InfoRow(
-                              icon: Icons.place_outlined,
-                              label: 'Address',
-                              value: profile.addressLabel,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        _SectionTitle(title: 'Assignment'),
-                        _InfoCard(
-                          children: <Widget>[
-                            _InfoRow(
-                              icon: Icons.route_outlined,
-                              label: 'Territory',
-                              value: profile.territoryLabel,
-                            ),
-                            _InfoRow(
-                              icon: Icons.warehouse_outlined,
-                              label: 'Warehouse',
-                              value: profile.warehouseLabel,
-                            ),
-                            _InfoRow(
-                              icon: Icons.local_shipping_outlined,
-                              label: 'Vehicle',
-                              value:
-                                  '${profile.vehicleHeadline}\n${profile.vehicleSubLabel}',
-                            ),
-                            _InfoRow(
-                              icon: Icons.event_available_outlined,
-                              label: 'Today',
-                              value:
-                                  '${profile.deliveryDateLabel}\n${profile.statusLabel}',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceWarm,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: AppTheme.outlineWarm.withAlpha(110),
-                            ),
-                          ),
-                          child: Row(
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.surfaceTint,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.tune_outlined,
-                                  color: AppTheme.primaryBrownDark,
+                              Text(
+                                'Profile',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: AppTheme.textDark,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      'Need account changes?',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: AppTheme.textDark,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Use the Settings tab to update security while keeping the same distributor workflow.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(color: AppTheme.textSoft),
-                                    ),
-                                  ],
+                              const SizedBox(height: 4),
+                              Text(
+                                _isEditing
+                                    ? 'Update your distributor account details and save the changes.'
+                                    : 'Review your distributor profile and switch to edit mode when needed.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.textSoft,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 22),
-                        OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Close'),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: () => _handleLogout(context),
-                          icon: const Icon(Icons.logout_outlined),
-                          label: const Text('Logout'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppTheme.primaryBrownDark,
+                        if (_isEditing)
+                          TextButton(
+                            onPressed: _isSaving ? null : _cancelEditing,
+                            child: const Text('Cancel'),
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: _isLoadingProfile
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _isEditing = true;
+                                    });
+                                  },
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit'),
                           ),
-                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  if (_isLoadingProfile)
+                    const LinearProgressIndicator(minHeight: 2),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          _ProfileHero(profile: _profile),
+                          const SizedBox(height: 20),
+                          _buildSectionTitle('Account details'),
+                          _buildEditableField(
+                            label: 'Username',
+                            controller: _usernameController,
+                            validator: FormValidators.username,
+                            icon: Icons.alternate_email_outlined,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          _buildEditableField(
+                            label: 'First name',
+                            controller: _firstNameController,
+                            validator: (value) => FormValidators.personName(
+                              value,
+                              fieldName: 'First name',
+                            ),
+                            icon: Icons.person_outline,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          _buildEditableField(
+                            label: 'Last name',
+                            controller: _lastNameController,
+                            validator: (value) => FormValidators.personName(
+                              value,
+                              fieldName: 'Last name',
+                            ),
+                            icon: Icons.person_outline,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          _buildEditableField(
+                            label: 'Telephone number',
+                            controller: _phoneNumberController,
+                            validator: FormValidators.phoneNumber,
+                            icon: Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          _buildEditableField(
+                            label: 'Email',
+                            controller: _emailController,
+                            validator: FormValidators.email,
+                            icon: Icons.mail_outline,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.done,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildSectionTitle('Assignment details'),
+                          _buildReadOnlyField(
+                            label: 'Territory',
+                            controller: _territoryController,
+                            icon: Icons.route_outlined,
+                            helperText:
+                                'Territory assignment is controlled by the warehouse team.',
+                          ),
+                          _buildReadOnlyField(
+                            label: 'Warehouse',
+                            controller: _warehouseController,
+                            icon: Icons.warehouse_outlined,
+                          ),
+                          _buildReadOnlyField(
+                            label: 'Address',
+                            controller: _addressController,
+                            icon: Icons.place_outlined,
+                            maxLines: 3,
+                            helperText:
+                                'Address updates are managed centrally for distributor accounts.',
+                          ),
+                          _InfoCard(
+                            children: <Widget>[
+                              _InfoRow(
+                                icon: Icons.local_shipping_outlined,
+                                label: 'Vehicle',
+                                value:
+                                    '${_profile.vehicleHeadline}\n${_profile.vehicleSubLabel}',
+                              ),
+                              _InfoRow(
+                                icon: Icons.event_available_outlined,
+                                label: 'Today',
+                                value:
+                                    '${_profile.deliveryDateLabel}\n${_profile.statusLabel}',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          if (_isEditing) ...<Widget>[
+                            FilledButton.icon(
+                              onPressed: _isSaving ? null : _saveProfile,
+                              icon: _isSaving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_outlined),
+                              label: Text(
+                                _isSaving ? 'Saving...' : 'Save changes',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Close'),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: _handleLogout,
+                            icon: const Icon(Icons.logout_outlined),
+                            label: const Text('Logout'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.primaryBrownDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -453,23 +779,6 @@ class _HeroChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        color: AppTheme.textDark,
-        fontWeight: FontWeight.w800,
       ),
     );
   }

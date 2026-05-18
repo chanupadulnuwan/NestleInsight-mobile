@@ -119,8 +119,6 @@ class DistributorService {
   Future<String> requestWarehouseReturnPin({
     required String assignmentId,
     required double cashReturnedAmount,
-    String? cashVarianceType,
-    String? cashVarianceReason,
     String? earlyClosureReason,
   }) async {
     try {
@@ -128,10 +126,6 @@ class DistributorService {
         '/delivery-assignments/$assignmentId/request-warehouse-return-pin',
         data: {
           'cashReturnedAmount': cashReturnedAmount,
-          if (cashVarianceType != null && cashVarianceType.trim().isNotEmpty)
-            'cashVarianceType': cashVarianceType.trim(),
-          if (cashVarianceReason != null && cashVarianceReason.trim().isNotEmpty)
-            'cashVarianceReason': cashVarianceReason.trim(),
           if (earlyClosureReason != null && earlyClosureReason.trim().isNotEmpty)
             'earlyClosureReason': earlyClosureReason.trim(),
         },
@@ -154,8 +148,6 @@ class DistributorService {
     required String tmPin,
     required List<ReturnItemInput> items,
     required double cashReturnedAmount,
-    String? cashVarianceType,
-    String? cashVarianceReason,
     String? earlyClosureReason,
   }) async {
     try {
@@ -164,10 +156,6 @@ class DistributorService {
         data: {
           'tmPin': tmPin,
           'cashReturnedAmount': cashReturnedAmount,
-          if (cashVarianceType != null && cashVarianceType.trim().isNotEmpty)
-            'cashVarianceType': cashVarianceType.trim(),
-          if (cashVarianceReason != null && cashVarianceReason.trim().isNotEmpty)
-            'cashVarianceReason': cashVarianceReason.trim(),
           if (earlyClosureReason != null && earlyClosureReason.trim().isNotEmpty)
             'earlyClosureReason': earlyClosureReason.trim(),
           'items': items.map((i) => i.toJson()).toList(),

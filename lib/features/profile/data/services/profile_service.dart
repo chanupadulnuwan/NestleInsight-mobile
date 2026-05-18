@@ -15,6 +15,7 @@ class ProfileResult {
   const ProfileResult({
     required this.message,
     required this.profile,
+    required this.userData,
     this.accessToken,
   });
 
@@ -25,12 +26,14 @@ class ProfileResult {
     return ProfileResult(
       message: json['message'] as String? ?? 'Profile request completed.',
       profile: ShopOwnerProfile.fromJson(userMap),
+      userData: userMap ?? <String, dynamic>{},
       accessToken: json['accessToken'] as String?,
     );
   }
 
   final String message;
   final ShopOwnerProfile profile;
+  final Map<String, dynamic> userData;
   final String? accessToken;
 }
 
@@ -63,19 +66,24 @@ class ProfileService {
     required String lastName,
     required String phoneNumber,
     required String email,
-    required String shopName,
+    String? shopName,
   }) async {
     try {
+      final payload = <String, dynamic>{
+        'username': username.trim(),
+        'firstName': firstName.trim(),
+        'lastName': lastName.trim(),
+        'phoneNumber': phoneNumber.trim(),
+        'email': email.trim().toLowerCase(),
+      };
+
+      if (shopName != null) {
+        payload['shopName'] = shopName.trim();
+      }
+
       final response = await _dio.patch<Map<String, dynamic>>(
         '/auth/me',
-        data: <String, dynamic>{
-          'username': username.trim(),
-          'firstName': firstName.trim(),
-          'lastName': lastName.trim(),
-          'phoneNumber': phoneNumber.trim(),
-          'email': email.trim().toLowerCase(),
-          'shopName': shopName.trim(),
-        },
+        data: payload,
       );
 
       final result = ProfileResult.fromJson(
@@ -84,6 +92,10 @@ class ProfileService {
 
       if (result.accessToken != null && result.accessToken!.isNotEmpty) {
         await _tokenStorageService.saveAccessToken(result.accessToken!);
+      }
+
+      if (result.userData.isNotEmpty) {
+        await _tokenStorageService.saveUserData(result.userData);
       }
 
       return result;

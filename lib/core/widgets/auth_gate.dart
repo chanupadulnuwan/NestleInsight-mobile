@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/dio_client.dart';
 import 'package:mobile/core/storage/token_storage_service.dart';
-import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/insight_loading_screen.dart';
 import 'package:mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/distributor_home_page.dart';
 import 'package:mobile/features/home/presentation/pages/shop_owner_dashboard_page.dart';
@@ -68,18 +68,13 @@ class _AuthGateState extends State<AuthGate> {
     } else {
       home = DummyHomePage(user: user);
     }
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => home),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute<void>(builder: (_) => home));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.surfaceWarm,
-      body: const Center(
-        child: CircularProgressIndicator(color: AppTheme.primaryBrown),
-      ),
-    );
+    return const InsightLoadingScreen();
   }
 }

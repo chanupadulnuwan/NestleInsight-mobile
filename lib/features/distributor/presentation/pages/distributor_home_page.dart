@@ -11,7 +11,7 @@ import 'package:mobile/features/distributor/presentation/pages/deliver_order_pag
 import 'package:mobile/features/distributor/presentation/pages/distributor_smart_route_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/lorry_inventory_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/report_incident_page.dart';
-import 'package:mobile/features/distributor/presentation/pages/shop_return_page.dart';
+import 'package:mobile/features/distributor/presentation/pages/return_products_page.dart';
 import 'package:mobile/features/distributor/presentation/pages/warehouse_return_page.dart';
 import 'package:mobile/features/distributor/presentation/widgets/distributor_profile_sheet.dart';
 import 'package:mobile/features/settings/presentation/widgets/change_password_sheet.dart';
@@ -30,6 +30,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
   final DistributorService _service = DistributorService();
   final AuthService _authService = AuthService();
 
+  Map<String, dynamic>? _userData;
   DeliveryAssignment? _assignment;
   bool _loading = true;
   String? _error;
@@ -41,6 +42,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _userData = widget.user;
     _currentTime = DateTime.now();
     _startGreetingSync();
     _loadAssignment();
@@ -77,7 +79,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
   }
 
   DistributorProfileData get _profile =>
-      DistributorProfileData.fromUser(widget.user, assignment: _assignment);
+      DistributorProfileData.fromUser(_userData, assignment: _assignment);
 
   void _startGreetingSync() {
     _greetingTimer?.cancel();
@@ -169,6 +171,15 @@ class _DistributorHomePageState extends State<DistributorHomePage>
       builder: (_) => DistributorProfileSheet(
         profile: _profile,
         onLogoutRequested: _logout,
+        onProfileSaved: (profile) {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _userData = profile.toUserMap();
+          });
+        },
       ),
     );
   }
@@ -221,13 +232,31 @@ class _DistributorHomePageState extends State<DistributorHomePage>
   Future<void> _openWarehouseReturnPage() async {
     final assignment = _assignment;
     if (assignment == null || !assignment.isActive) {
-      _showMessage('Warehouse returns are available only for an active route.');
+      _showMessage('End route is available only for an active route.');
       return;
     }
 
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => WarehouseReturnPage(assignment: assignment),
+      ),
+    );
+
+    if (result == true) {
+      await _loadAssignment();
+    }
+  }
+
+  Future<void> _openReturnProductsPage() async {
+    final assignment = _assignment;
+    if (assignment == null || assignment.orders.isEmpty) {
+      _showMessage('No route orders are available for product returns yet.');
+      return;
+    }
+
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ReturnProductsPage(assignment: assignment),
       ),
     );
 
@@ -255,9 +284,9 @@ class _DistributorHomePageState extends State<DistributorHomePage>
 
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => ShopReturnPage(
-          order: order,
-          lorryInventory: assignment.lorryInventory,
+        builder: (_) => ReturnProductsPage(
+          assignment: assignment,
+          initialOrderId: order.orderId,
         ),
       ),
     );
@@ -359,6 +388,7 @@ class _DistributorHomePageState extends State<DistributorHomePage>
                                 onProfileTap: _openProfileSheet,
                                 onSmartRouteTap: _openSmartRoutePage,
                                 onInventoryTap: _openInventoryPage,
+                                onReturnProductsTap: _openReturnProductsPage,
                                 onWarehouseReturnTap: _openWarehouseReturnPage,
                                 onDeliverTap: _openDeliverOrder,
                                 onShopReturnTap: _openShopReturn,
@@ -389,6 +419,7 @@ class _TabBody extends StatelessWidget {
     required this.onProfileTap,
     required this.onSmartRouteTap,
     required this.onInventoryTap,
+    required this.onReturnProductsTap,
     required this.onWarehouseReturnTap,
     required this.onDeliverTap,
     required this.onShopReturnTap,
@@ -405,6 +436,7 @@ class _TabBody extends StatelessWidget {
   final VoidCallback onProfileTap;
   final Future<void> Function() onSmartRouteTap;
   final Future<void> Function() onInventoryTap;
+  final Future<void> Function() onReturnProductsTap;
   final Future<void> Function() onWarehouseReturnTap;
   final Future<void> Function(AssignmentOrder order) onDeliverTap;
   final Future<void> Function(AssignmentOrder order) onShopReturnTap;
@@ -445,6 +477,7 @@ class _TabBody extends StatelessWidget {
           onProfileTap: onProfileTap,
           onSmartRouteTap: onSmartRouteTap,
           onInventoryTap: onInventoryTap,
+          onReturnProductsTap: onReturnProductsTap,
           onWarehouseReturnTap: onWarehouseReturnTap,
           onDeliverTap: onDeliverTap,
           onShopReturnTap: onShopReturnTap,
@@ -462,6 +495,7 @@ class _DistributorHomeTab extends StatelessWidget {
     required this.onProfileTap,
     required this.onSmartRouteTap,
     required this.onInventoryTap,
+    required this.onReturnProductsTap,
     required this.onWarehouseReturnTap,
     required this.onDeliverTap,
     required this.onShopReturnTap,
@@ -474,6 +508,7 @@ class _DistributorHomeTab extends StatelessWidget {
   final VoidCallback onProfileTap;
   final Future<void> Function() onSmartRouteTap;
   final Future<void> Function() onInventoryTap;
+  final Future<void> Function() onReturnProductsTap;
   final Future<void> Function() onWarehouseReturnTap;
   final Future<void> Function(AssignmentOrder order) onDeliverTap;
   final Future<void> Function(AssignmentOrder order) onShopReturnTap;
@@ -538,35 +573,101 @@ class _DistributorHomeTab extends StatelessWidget {
               'Keep the same distributor tools, but with a cleaner dashboard layout.',
         ),
         const SizedBox(height: 12),
-        _ActionPanel(
-          icon: Icons.alt_route,
-          title: 'Smart Route',
-          subtitle: 'Navigate assigned shops from nearest to farthest.',
-          onTap: onSmartRouteTap,
-          accentColor: AppTheme.promotionMutedRed,
-        ),
-        const SizedBox(height: 12),
-        if (assignment != null && assignment!.isActive)
-          Row(
+        if (assignment != null && assignment!.isActive && isTablet)
+          Column(
             children: <Widget>[
-              Expanded(
-                child: _ActionPanel(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Inventory',
-                  subtitle: 'Check the lorry stock and loaded items.',
-                  onTap: onInventoryTap,
-                ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.alt_route,
+                      title: 'Smart Route',
+                      subtitle: 'Navigate assigned shops from nearest to farthest.',
+                      onTap: onSmartRouteTap,
+                      accentColor: AppTheme.promotionMutedRed,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.warehouse_outlined,
+                      title: 'End route',
+                      subtitle:
+                          'Review route returns, enter returned cash, and close today\'s route.',
+                      onTap: onWarehouseReturnTap,
+                      accentColor: AppTheme.proceedOrderOlive,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActionPanel(
-                  icon: Icons.warehouse_outlined,
-                  title: 'End route',
-                  subtitle:
-                      'Review route returns, cash, and close today\'s route.',
-                  onTap: onWarehouseReturnTap,
-                  accentColor: AppTheme.proceedOrderOlive,
-                ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Inventory',
+                      subtitle: 'Check the lorry stock and loaded items.',
+                      onTap: onInventoryTap,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.assignment_return_outlined,
+                      title: 'Return products',
+                      subtitle:
+                          'Record shop-owner product returns and confirm them.',
+                      onTap: onReturnProductsTap,
+                      accentColor: const Color(0xFFB86152),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          )
+        else if (assignment != null && assignment!.isActive)
+          Column(
+            children: <Widget>[
+              _ActionPanel(
+                icon: Icons.alt_route,
+                title: 'Smart Route',
+                subtitle: 'Navigate assigned shops from nearest to farthest.',
+                onTap: onSmartRouteTap,
+                accentColor: AppTheme.promotionMutedRed,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Inventory',
+                      subtitle: 'Check the lorry stock and loaded items.',
+                      onTap: onInventoryTap,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ActionPanel(
+                      icon: Icons.assignment_return_outlined,
+                      title: 'Return products',
+                      subtitle:
+                          'Record shop-owner product returns and confirm them.',
+                      onTap: onReturnProductsTap,
+                      accentColor: const Color(0xFFB86152),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ActionPanel(
+                icon: Icons.warehouse_outlined,
+                title: 'End route',
+                subtitle:
+                    'Review route returns, enter returned cash, and close today\'s route.',
+                onTap: onWarehouseReturnTap,
+                accentColor: AppTheme.proceedOrderOlive,
               ),
             ],
           )
@@ -1118,7 +1219,8 @@ class _HeaderCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: isTablet ? 252 : 246,
+      constraints: BoxConstraints(minHeight: isTablet ? 252 : 252),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(34),
         gradient: const LinearGradient(
@@ -1161,9 +1263,10 @@ class _HeaderCard extends StatelessWidget {
               isTablet ? 28 : 20,
               isTablet ? 18 : 16,
               isTablet ? 28 : 20,
-              isTablet ? 24 : 20,
+              isTablet ? 26 : 24,
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Align(
@@ -1193,7 +1296,7 @@ class _HeaderCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
+                SizedBox(height: isTablet ? 48 : 40),
                 Text(
                   greetingText,
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -1311,7 +1414,10 @@ class _MetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(216),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withAlpha(150)),
+        border: Border.all(
+          color: AppTheme.primaryBrown.withAlpha(92),
+          width: 1.2,
+        ),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1393,15 +1499,15 @@ class _ProgressOverviewCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Color(0xFFE5F5E7),
-            Color(0xFFD7EFE0),
+            Color(0xFFE7EAD9),
+            Color(0xFFD8DEC7),
           ],
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFAED0B7)),
+        border: Border.all(color: const Color(0xFF90977A)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: const Color(0xFF2F6B45).withAlpha(20),
+            color: const Color(0xFF5B614B).withAlpha(20),
             blurRadius: 20,
             offset: const Offset(0, 12),
           ),
@@ -1426,7 +1532,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                     ? '0/0'
                     : '${assignment!.completedCount}/${assignment!.totalCount}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF2C6A45),
+                  color: const Color(0xFF5E654F),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1438,9 +1544,9 @@ class _ProgressOverviewCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: const Color(0xFFBFDCC8),
+              backgroundColor: const Color(0xFFC8CFB5),
               valueColor: const AlwaysStoppedAnimation<Color>(
-                Color(0xFF2C7A52),
+                Color(0xFF90977A),
               ),
             ),
           ),
@@ -1451,7 +1557,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                 child: _SummaryPill(
                   label: 'Completed',
                   value: '$completedCount',
-                  color: const Color(0xFF2C7A52),
+                  color: const Color(0xFF90977A),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1459,7 +1565,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                 child: _SummaryPill(
                   label: 'Pending',
                   value: '$pendingCount',
-                  color: const Color(0xFF4F8B60),
+                  color: const Color(0xFF7B8566),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1469,7 +1575,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                   value: assignment == null
                       ? 'Pending'
                       : _formatDateFromRaw(assignment!.deliveryDate),
-                  color: const Color(0xFF35684B),
+                  color: const Color(0xFF6F775A),
                 ),
               ),
             ],
@@ -2233,6 +2339,8 @@ class _ActivityActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.sizeOf(context).width >= 900;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -2279,10 +2387,32 @@ class _ActivityActionCard extends StatelessWidget {
                   ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                 ),
                 const SizedBox(height: 14),
-                FilledButton(
-                  onPressed: onTap,
-                  style: FilledButton.styleFrom(backgroundColor: accentColor),
-                  child: Text(buttonLabel),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton(
+                    onPressed: onTap,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accentColor,
+                      minimumSize: Size(isTablet ? 132 : 120, 46),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 20 : 18,
+                        vertical: 12,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    child: Text(
+                      buttonLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
               ],
             ),

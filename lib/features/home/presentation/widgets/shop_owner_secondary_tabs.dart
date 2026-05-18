@@ -437,12 +437,14 @@ class ShopOwnerSettingsTab extends StatelessWidget {
     required this.profile,
     required this.onSecurityTap,
     required this.onInsightsTap,
+    required this.onFeedbackTap,
   });
 
   final bool isTablet;
   final ShopOwnerProfile profile;
   final VoidCallback onSecurityTap;
   final VoidCallback onInsightsTap;
+  final VoidCallback onFeedbackTap;
 
   @override
   Widget build(BuildContext context) {
@@ -540,6 +542,37 @@ class ShopOwnerSettingsTab extends StatelessWidget {
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: onSecurityTap,
+              ),
+              Divider(color: AppTheme.outlineWarm.withAlpha(110)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0EAE2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: AppTheme.primaryBrownDark,
+                  ),
+                ),
+                title: Text(
+                  'Feedback',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: Text(
+                  'Share product feedback, service notes, or quick shop updates from Settings.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: onFeedbackTap,
               ),
               Divider(color: AppTheme.outlineWarm.withAlpha(110)),
               ListTile(

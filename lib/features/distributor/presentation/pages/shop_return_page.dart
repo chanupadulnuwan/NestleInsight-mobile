@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/distributor/data/services/distributor_service.dart';
 import 'package:mobile/features/distributor/domain/delivery_assignment.dart';
+import 'package:mobile/features/home/data/services/product_catalog_service.dart';
+import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 
 const _reasons = <(String, String)>[
   ('EXPIRED', 'Expired'),
   ('DAMAGED', 'Damaged'),
-  ('OTHER', 'Other reason'),
+  ('OTHER', 'Other'),
 ];
 
 class ShopReturnPage extends StatefulWidget {
@@ -26,7 +28,7 @@ class ShopReturnPage extends StatefulWidget {
 
 class _ShopReturnPageState extends State<ShopReturnPage> {
   final _service = DistributorService();
-  final _searchController = TextEditingController();
+  final _catalogService = ProductCatalogService();
   final List<ReturnItemInput> _items = [];
   final List<TextEditingController> _pinControllers = List.generate(
     6,
@@ -37,91 +39,180 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
   bool _pinSent = false;
   bool _requestingPin = false;
   bool _submitting = false;
-  String? _error;
   bool _success = false;
+  bool _catalogLoading = true;
+  String? _error;
+  String? _catalogError;
+  String? _selectedProductKey;
+  List<_SelectableReturnProduct> _availableProducts =
+      const <_SelectableReturnProduct>[];
 
-  String get _currentPin => _pinControllers.map((c) => c.text).join();
+  String get _currentPin => _pinControllers.map((controller) => controller.text).join();
 
-  List<OrderItem> get _filteredInventory {
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return widget.lorryInventory;
-    return widget.lorryInventory
-        .where((i) => i.productName.toLowerCase().contains(q))
-        .toList();
+  _SelectableReturnProduct? get _selectedProduct {
+    final key = _selectedProductKey;
+    if (key == null) {
+      return null;
+    }
+    for (final product in _availableProducts) {
+      if (_productKey(product) == key) {
+        return product;
+      }
+    }
+    return null;
   }
 
-  double get _totalValue => _items.fold(0, (sum, i) => sum + i.totalValue);
+  double get _totalValue => _items.fold(0, (sum, item) => sum + item.totalValue);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
 
   @override
   void dispose() {
-    _searchController.dispose();
-    for (final c in _pinControllers) {
-      c.dispose();
+    for (final controller in _pinControllers) {
+      controller.dispose();
     }
-    for (final f in _pinFocusNodes) {
-      f.dispose();
+    for (final focusNode in _pinFocusNodes) {
+      focusNode.dispose();
     }
     super.dispose();
   }
 
-  void _addItem(OrderItem product) {
-    final existing = _items.where(
-      (i) =>
-          (i.productId != null && i.productId == product.productId) ||
-          i.productNameSnapshot == product.productName,
+  String _productKey(_SelectableReturnProduct product) => product.id;
+
+  Future<void> _loadProducts() async {
+    final lorryByProductId = <String, OrderItem>{
+      for (final item in widget.lorryInventory)
+        if ((item.productId ?? '').trim().isNotEmpty) item.productId!: item,
+    };
+    final lorryByName = <String, OrderItem>{
+      for (final item in widget.lorryInventory) item.productName: item,
+    };
+
+    try {
+      final result = await _catalogService.fetchCatalog();
+      final options = result.products
+          .where((product) => product.name.trim().isNotEmpty)
+          .map(
+            (product) => _SelectableReturnProduct.fromCatalog(
+              product,
+              lorryByProductId[product.id] ?? lorryByName[product.name],
+            ),
+          )
+          .toList()
+        ..sort((left, right) => left.name.compareTo(right.name));
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _availableProducts = options;
+        _catalogLoading = false;
+        _catalogError = null;
+        if (_selectedProductKey == null && options.isNotEmpty) {
+          _selectedProductKey = _productKey(options.first);
+        }
+      });
+    } on ProductCatalogServiceException catch (error) {
+      final fallback = widget.lorryInventory
+          .map(_SelectableReturnProduct.fromOrderItem)
+          .toList()
+        ..sort((left, right) => left.name.compareTo(right.name));
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _availableProducts = fallback;
+        _catalogLoading = false;
+        _catalogError = error.message;
+        if (_selectedProductKey == null && fallback.isNotEmpty) {
+          _selectedProductKey = _productKey(fallback.first);
+        }
+      });
+    }
+  }
+
+  void _addSelectedProduct() {
+    final product = _selectedProduct;
+    if (product == null) {
+      setState(() {
+        _error = 'Select a product first.';
+      });
+      return;
+    }
+    _addItem(product);
+  }
+
+  void _addItem(_SelectableReturnProduct product) {
+    final exists = _items.any(
+      (item) =>
+          (item.productId != null && item.productId == product.productId) ||
+          item.productNameSnapshot == product.name,
     );
-    if (existing.isNotEmpty) {
+    if (exists) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${product.productName} is already in the list. Adjust the quantity below.',
+            '${product.name} is already in the return list. Adjust the count below.',
           ),
         ),
       );
       return;
     }
+
     setState(() {
       _items.add(
         ReturnItemInput(
           productId: product.productId,
-          productNameSnapshot: product.productName,
+          productNameSnapshot: product.name,
           quantity: 1,
           unitType: 'CASE',
           reason: 'EXPIRED',
-          unitPrice: product.unitPrice,
-          itemUnitPrice: product.resolvedItemUnitPrice,
+          unitPrice: product.casePrice,
+          itemUnitPrice: product.unitPrice,
           productsPerCase: product.productsPerCase,
         ),
       );
+      _error = null;
     });
   }
 
   Future<void> _requestPin() async {
     if (_items.isEmpty) {
       setState(() {
-        _error = 'Add at least one item to return.';
+        _error = 'Add at least one return product first.';
       });
       return;
     }
+
     setState(() {
       _requestingPin = true;
       _error = null;
     });
+
     try {
       await _service.requestShopReturnPin(orderId: widget.order.orderId);
-      if (mounted) {
-        setState(() {
-          _pinSent = true;
-          _requestingPin = false;
-        });
+      if (!mounted) {
+        return;
       }
-    } on DistributorServiceException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _requestingPin = false;
-        });
+      setState(() {
+        _pinSent = true;
+        _requestingPin = false;
+      });
+    } on DistributorServiceException catch (error) {
+      if (!mounted) {
+        return;
       }
+      setState(() {
+        _error = error.message;
+        _requestingPin = false;
+      });
     }
   }
 
@@ -133,38 +224,43 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
       });
       return;
     }
+
     for (final item in _items) {
       if (item.reason == 'OTHER' &&
           (item.reasonNote == null || item.reasonNote!.trim().isEmpty)) {
         setState(() {
-          _error = 'Describe the reason for "${item.productNameSnapshot}".';
+          _error = 'Explain the "Other" reason for ${item.productNameSnapshot}.';
         });
         return;
       }
     }
+
     setState(() {
       _submitting = true;
       _error = null;
     });
+
     try {
       await _service.submitShopReturn(
         orderId: widget.order.orderId,
         pin: pin,
         items: _items,
       );
-      if (mounted) {
-        setState(() {
-          _success = true;
-          _submitting = false;
-        });
+      if (!mounted) {
+        return;
       }
-    } on DistributorServiceException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _submitting = false;
-        });
+      setState(() {
+        _success = true;
+        _submitting = false;
+      });
+    } on DistributorServiceException catch (error) {
+      if (!mounted) {
+        return;
       }
+      setState(() {
+        _error = error.message;
+        _submitting = false;
+      });
     }
   }
 
@@ -177,7 +273,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
       appBar: AppBar(
         backgroundColor: AppTheme.primaryBrownDark,
         foregroundColor: Colors.white,
-        title: const Text('Shop Return'),
+        title: const Text('Return Products'),
       ),
       body: _success
           ? _SuccessView(onDone: () => Navigator.of(context).pop(true))
@@ -186,7 +282,6 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Shop info
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -209,7 +304,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                           child: Text(
                             '${widget.order.shopName} · ${widget.order.orderCode}',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               color: AppTheme.textDark,
                             ),
                           ),
@@ -218,69 +313,101 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Product search
                   Text(
-                    'Select Products to Return',
+                    'Return Products',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: AppTheme.textDark,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Record items the shop owner is giving back from this delivery or older stock. Use Case for sealed cases and Item for loose products.',
+                    'Choose a product from the dropdown, add it to the list, then record the returned amount by cases or units with the reason.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSoft,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      hintText: 'Search product on lorry…',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
                   const SizedBox(height: 10),
-                  if (_filteredInventory.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'No matching products found on the lorry.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSoft,
-                        ),
-                      ),
+                  if (_catalogLoading)
+                    const _MessageCard(message: 'Loading product list...')
+                  else if (_availableProducts.isEmpty)
+                    const _MessageCard(
+                      message: 'No products are available for returns right now.',
                     )
                   else
-                    ...(_filteredInventory.map(
-                      (product) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: _ProductRow(
-                          product: product,
-                          onAdd: () => _addItem(product),
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.outlineWarm),
                       ),
-                    )),
-
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedProductKey,
+                            decoration: const InputDecoration(
+                              labelText: 'Product',
+                              prefixIcon: Icon(Icons.inventory_2_outlined),
+                            ),
+                            items: _availableProducts
+                                .map(
+                                  (product) => DropdownMenuItem<String>(
+                                    value: _productKey(product),
+                                    child: Text(product.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedProductKey = value;
+                              });
+                            },
+                          ),
+                          if (_selectedProduct != null) ...[
+                            const SizedBox(height: 12),
+                            _ProductSummaryCard(product: _selectedProduct!),
+                            if (_catalogError != null) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                'Catalog note: $_catalogError',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textSoft,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: _addSelectedProduct,
+                              icon: const Icon(Icons.add_circle_outline),
+                              label: const Text('Add product to return list'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBrown,
+                                minimumSize: const Size(double.infinity, 48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   if (_items.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     Text(
                       'Return List',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppTheme.textDark,
                       ),
                     ),
                     const SizedBox(height: 8),
                     ..._items.asMap().entries.map(
                       (entry) => _ReturnItemCard(
-                        index: entry.key,
                         item: entry.value,
-                        onRemove: () =>
-                            setState(() => _items.removeAt(entry.key)),
+                        onRemove: () => setState(() => _items.removeAt(entry.key)),
                         onChanged: () => setState(() {}),
                       ),
                     ),
@@ -291,47 +418,45 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.surfaceTint,
+                        color: const Color(0xFFFFF3F1),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppTheme.outlineWarm),
+                        border: Border.all(color: const Color(0xFFE6B9B3)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Estimated Return Value',
+                            'Total return amount',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               color: AppTheme.textDark,
                             ),
                           ),
                           Text(
-                            'LKR ${_totalValue.toStringAsFixed(2)}',
+                            '-LKR ${_totalValue.toStringAsFixed(2)}',
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: AppTheme.primaryBrownDark,
+                              color: AppTheme.rejectOrderRed,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ],
-
                   const SizedBox(height: 24),
                   const Divider(color: AppTheme.outlineWarm),
                   const SizedBox(height: 16),
-
                   if (!_pinSent) ...[
                     Text(
-                      'Confirm with Shop Owner',
+                      'Shop Owner Return Money Confirm',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppTheme.textDark,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'A confirmation PIN will be sent to the shop owner\'s app. They will share it with you to authorise the product pickup.',
+                      'When you press the button below, the shop owner receives a confirmation PIN in their Activity Center. Enter that PIN here to complete the return.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: AppTheme.textSoft,
                       ),
@@ -349,7 +474,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                               ),
                             )
                           : const Icon(Icons.send_outlined),
-                      label: const Text('Request Confirmation PIN'),
+                      label: const Text('Shop Owner Return Money Confirm'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryBrown,
                         minimumSize: const Size(double.infinity, 52),
@@ -376,7 +501,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'PIN sent to shop owner. Ask them to share the 6-digit code.',
+                              'PIN sent to the shop owner. Ask them to read the 6-digit code from their Activity Center.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: const Color(0xFF1E5C3A),
                               ),
@@ -389,7 +514,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                     Text(
                       'Enter Confirmation PIN',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppTheme.textDark,
                       ),
                     ),
@@ -407,11 +532,10 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                             textAlign: TextAlign.center,
                             keyboardType: TextInputType.number,
                             maxLength: 1,
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.textDark,
-                                ),
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textDark,
+                            ),
                             decoration: InputDecoration(
                               counterText: '',
                               contentPadding: EdgeInsets.zero,
@@ -435,10 +559,10 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
-                            onChanged: (v) {
-                              if (v.length == 1 && index < 5) {
+                            onChanged: (value) {
+                              if (value.length == 1 && index < 5) {
                                 _pinFocusNodes[index + 1].requestFocus();
-                              } else if (v.isEmpty && index > 0) {
+                              } else if (value.isEmpty && index > 0) {
                                 _pinFocusNodes[index - 1].requestFocus();
                               }
                               setState(() {});
@@ -468,7 +592,7 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                             )
                           : const Icon(Icons.inventory_2_outlined),
                       label: const Text(
-                        'Record Return',
+                        'Complete Return',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -483,7 +607,6 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
                       ),
                     ),
                   ],
-
                   if (_error != null) ...[
                     const SizedBox(height: 14),
                     Container(
@@ -510,46 +633,105 @@ class _ShopReturnPageState extends State<ShopReturnPage> {
   }
 }
 
-class _ProductRow extends StatelessWidget {
-  const _ProductRow({required this.product, required this.onAdd});
-  final OrderItem product;
-  final VoidCallback onAdd;
+class _SelectableReturnProduct {
+  const _SelectableReturnProduct({
+    required this.id,
+    required this.productId,
+    required this.name,
+    required this.packSize,
+    required this.productsPerCase,
+    required this.casePrice,
+    required this.unitPrice,
+    required this.lorryCases,
+  });
+
+  factory _SelectableReturnProduct.fromCatalog(
+    ShopCatalogProduct product,
+    OrderItem? lorryMatch,
+  ) {
+    return _SelectableReturnProduct(
+      id: product.id,
+      productId: product.id,
+      name: product.name,
+      packSize: product.packSize,
+      productsPerCase: product.productsPerCase > 0 ? product.productsPerCase : 1,
+      casePrice: product.casePrice,
+      unitPrice: product.unitPrice > 0
+          ? product.unitPrice
+          : (product.productsPerCase > 0
+              ? product.casePrice / product.productsPerCase
+              : product.casePrice),
+      lorryCases: lorryMatch?.quantity ?? 0,
+    );
+  }
+
+  factory _SelectableReturnProduct.fromOrderItem(OrderItem item) {
+    return _SelectableReturnProduct(
+      id: item.productId ?? item.productName,
+      productId: item.productId,
+      name: item.productName,
+      packSize: item.packSize ?? '',
+      productsPerCase: item.productsPerCase > 0 ? item.productsPerCase : 1,
+      casePrice: item.unitPrice,
+      unitPrice: item.resolvedItemUnitPrice,
+      lorryCases: item.quantity,
+    );
+  }
+
+  final String id;
+  final String? productId;
+  final String name;
+  final String packSize;
+  final int productsPerCase;
+  final double casePrice;
+  final double unitPrice;
+  final int lorryCases;
+}
+
+class _ProductSummaryCard extends StatelessWidget {
+  const _ProductSummaryCard({required this.product});
+
+  final _SelectableReturnProduct product;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceTint,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.outlineWarm),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.productName,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textDark,
-                  ),
-                ),
-                Text(
-                  '${product.quantity} case(s) on lorry · LKR ${product.unitPrice.toStringAsFixed(2)}/case',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
-                ),
-              ],
+          Text(
+            product.name,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textDark,
             ),
           ),
-          IconButton(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add_circle_outline),
-            color: AppTheme.primaryBrown,
+          const SizedBox(height: 4),
+          Text(
+            product.packSize.isEmpty ? 'Pack size not available' : product.packSize,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Cases on lorry: ${product.lorryCases} · ${product.productsPerCase} units per case',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Case price: LKR ${product.casePrice.toStringAsFixed(2)} · Unit price: LKR ${product.unitPrice.toStringAsFixed(2)}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
           ),
         ],
       ),
@@ -559,12 +741,11 @@ class _ProductRow extends StatelessWidget {
 
 class _ReturnItemCard extends StatelessWidget {
   const _ReturnItemCard({
-    required this.index,
     required this.item,
     required this.onRemove,
     required this.onChanged,
   });
-  final int index;
+
   final ReturnItemInput item;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
@@ -572,6 +753,7 @@ class _ReturnItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -596,12 +778,12 @@ class _ReturnItemCard extends StatelessWidget {
                 ),
               ),
               IconButton(
+                onPressed: onRemove,
                 icon: const Icon(
                   Icons.close,
                   size: 18,
                   color: Color(0xFF9B4B46),
                 ),
-                onPressed: onRemove,
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -613,21 +795,22 @@ class _ReturnItemCard extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   initialValue: item.unitType,
                   decoration: const InputDecoration(
-                    labelText: 'Unit',
+                    labelText: 'Count by',
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'CASE', child: Text('Case')),
-                    DropdownMenuItem(value: 'ITEM', child: Text('Item')),
+                    DropdownMenuItem(value: 'CASE', child: Text('Cases')),
+                    DropdownMenuItem(value: 'ITEM', child: Text('Units')),
                   ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      item.unitType = v;
-                      onChanged();
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
                     }
+                    item.unitType = value;
+                    onChanged();
                   },
                 ),
               ),
@@ -636,7 +819,7 @@ class _ReturnItemCard extends StatelessWidget {
                 child: TextFormField(
                   initialValue: item.quantity.toString(),
                   decoration: const InputDecoration(
-                    labelText: 'Quantity',
+                    labelText: 'Count',
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
@@ -644,8 +827,8 @@ class _ReturnItemCard extends StatelessWidget {
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onChanged: (v) {
-                    item.quantity = int.tryParse(v) ?? 1;
+                  onChanged: (value) {
+                    item.quantity = int.tryParse(value) ?? 1;
                     onChanged();
                   },
                 ),
@@ -663,44 +846,74 @@ class _ReturnItemCard extends StatelessWidget {
               ),
             ),
             items: _reasons
-                .map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2)))
+                .map(
+                  (reason) => DropdownMenuItem<String>(
+                    value: reason.$1,
+                    child: Text(reason.$2),
+                  ),
+                )
                 .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                item.reason = v;
-                item.reasonNote = null;
-                onChanged();
+            onChanged: (value) {
+              if (value == null) {
+                return;
               }
+              item.reason = value;
+              item.reasonNote = null;
+              onChanged();
             },
           ),
           if (item.reason == 'OTHER') ...[
             const SizedBox(height: 8),
             TextFormField(
               initialValue: item.reasonNote,
+              maxLines: 2,
               decoration: const InputDecoration(
-                labelText: 'Describe reason',
+                labelText: 'Explain reason',
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 10,
                 ),
               ),
-              onChanged: (v) {
-                item.reasonNote = v;
+              onChanged: (value) {
+                item.reasonNote = value;
                 onChanged();
               },
             ),
           ],
-          if (item.unitPrice != null && item.unitPrice! > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Value: LKR ${item.totalValue.toStringAsFixed(2)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppTheme.primaryBrownDark,
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(height: 8),
+          Text(
+            'Amount: -LKR ${item.totalValue.toStringAsFixed(2)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.rejectOrderRed,
+              fontWeight: FontWeight.w700,
             ),
-          ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _MessageCard extends StatelessWidget {
+  const _MessageCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.outlineWarm),
+      ),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppTheme.textSoft),
       ),
     );
   }
@@ -708,6 +921,7 @@ class _ReturnItemCard extends StatelessWidget {
 
 class _SuccessView extends StatelessWidget {
   const _SuccessView({required this.onDone});
+
   final VoidCallback onDone;
 
   @override
@@ -730,7 +944,7 @@ class _SuccessView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Products have been logged as returned. Your territory manager has been notified.',
+              'The return has been confirmed with the shop owner and recorded successfully.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,

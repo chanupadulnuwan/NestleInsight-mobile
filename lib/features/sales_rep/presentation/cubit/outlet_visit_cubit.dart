@@ -761,7 +761,12 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
           if (detail.isNotEmpty) detail,
         ].join(' | ');
 
-        return {'tag': tag, if (notes.isNotEmpty) 'notes': notes};
+        return {
+          'tag': tag,
+          if (productIds.isNotEmpty) 'productIds': productIds,
+          if (productNames.isNotEmpty) 'productNames': productNames,
+          if (notes.isNotEmpty) 'notes': notes,
+        };
       }).toList();
 
       // Promotion checks
@@ -769,6 +774,9 @@ class OutletVisitCubit extends Cubit<OutletVisitState> {
         final check = s.promotionChecks[promo.id] ?? const PromoCheckEntry();
         return {
           'promotionId': promo.id,
+          'promotionName': promo.name,
+          if (promo.code != null && promo.code!.trim().isNotEmpty)
+            'promotionCode': promo.code,
           'informed': check.informed,
           if (check.feedback.isNotEmpty) 'customerFeedback': check.feedback,
         };

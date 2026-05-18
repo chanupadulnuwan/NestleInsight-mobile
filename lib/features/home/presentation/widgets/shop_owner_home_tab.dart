@@ -57,7 +57,8 @@ class ShopOwnerHomeTab extends StatelessWidget {
 
             controller.loadCatalog();
           },
-          trailingIcon: controller.searchQuery.isNotEmpty ||
+          trailingIcon:
+              controller.searchQuery.isNotEmpty ||
                   controller.selectedCategory != 'All'
               ? Icons.close
               : Icons.refresh,
@@ -69,9 +70,8 @@ class ShopOwnerHomeTab extends StatelessWidget {
           controller: controller,
           isTablet: isTablet,
           onSeeAll: () => _showAllProductsSheet(context),
-          onAddToCart: (productName) => onShowMessage(
-            '$productName added to the cart.',
-          ),
+          onAddToCart: (productName) =>
+              onShowMessage('$productName added to the cart.'),
         ),
         SizedBox(height: isTablet ? 22 : 18),
         SizedBox(
@@ -213,28 +213,10 @@ class _HeaderCard extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withAlpha(200)),
                     ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        Icon(
-                          Icons.person_outline,
-                          color: Colors.white,
-                          size: isTablet ? 30 : 24,
-                        ),
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD94141),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.2),
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Icon(
+                      Icons.person_outline,
+                      color: Colors.white,
+                      size: isTablet ? 30 : 24,
                     ),
                   ),
                 ),
@@ -331,9 +313,9 @@ class _SearchBarState extends State<_SearchBar> {
                 border: InputBorder.none,
                 hintText: 'Search Nestle products...',
                 hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSoft,
-                      fontSize: widget.isTablet ? 17 : 15,
-                    ),
+                  color: AppTheme.textSoft,
+                  fontSize: widget.isTablet ? 17 : 15,
+                ),
               ),
             ),
           ),
@@ -509,8 +491,8 @@ class _ProductSection extends StatelessWidget {
                     child: Text(
                       controller.catalogError!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF8A4D46),
-                          ),
+                        color: const Color(0xFF8A4D46),
+                      ),
                     ),
                   ),
                   TextButton(
@@ -525,9 +507,7 @@ class _ProductSection extends StatelessWidget {
           ),
         const SizedBox(height: 12),
         ScrollConfiguration(
-          behavior: const MaterialScrollBehavior().copyWith(
-            scrollbars: false,
-          ),
+          behavior: const MaterialScrollBehavior().copyWith(scrollbars: false),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(
@@ -549,12 +529,16 @@ class _ProductSection extends StatelessWidget {
                     selectedColor: AppTheme.primaryBrown,
                     backgroundColor: Colors.white,
                     labelStyle: TextStyle(
-                      color:
-                          isSelected ? Colors.white : AppTheme.primaryBrownDark,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected
+                          ? Colors.white
+                          : AppTheme.primaryBrownDark,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
-                    side: BorderSide(color: AppTheme.outlineWarm.withAlpha(120)),
+                    side: BorderSide(
+                      color: AppTheme.outlineWarm.withAlpha(120),
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -584,9 +568,9 @@ class _ProductSection extends StatelessWidget {
                       controller.selectedCategory == 'All'
                   ? 'No active products are available right now.'
                   : 'No active products matched the current search or category.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSoft,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
             ),
           )
         else
@@ -729,36 +713,112 @@ class _ProductCard extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: Theme(
-                data: theme.copyWith(
-                  filledButtonTheme: FilledButtonThemeData(
-                    style: FilledButton.styleFrom(
-                      // Add-to-cart color: warm clay tone so it differs from the feedback button but stays on-theme.
-                      backgroundColor: AppTheme.addToCartClay,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                    ),
-                  ),
-                ),
-                child: FilledButton.icon(
-                  onPressed: onAddToCart,
-                  icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-                  label: Text(
-                    'Add to Cart',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: isTablet ? 18 : 15,
-                    ),
-                  ),
+              child: _AnimatedAddToCartButton(
+                onPressed: onAddToCart,
+                labelStyle: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: isTablet ? 18 : 15,
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedAddToCartButton extends StatefulWidget {
+  const _AnimatedAddToCartButton({
+    required this.labelStyle,
+    required this.onPressed,
+  });
+
+  final TextStyle? labelStyle;
+  final VoidCallback onPressed;
+
+  @override
+  State<_AnimatedAddToCartButton> createState() =>
+      _AnimatedAddToCartButtonState();
+}
+
+class _AnimatedAddToCartButtonState extends State<_AnimatedAddToCartButton> {
+  bool _isPressed = false;
+  bool _isRunningTapAnimation = false;
+
+  void _setPressed(bool value) {
+    if (_isPressed == value) {
+      return;
+    }
+    setState(() {
+      _isPressed = value;
+    });
+  }
+
+  Future<void> _handleTap() async {
+    if (_isRunningTapAnimation) {
+      return;
+    }
+
+    _isRunningTapAnimation = true;
+    _setPressed(true);
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    if (!mounted) {
+      return;
+    }
+
+    widget.onPressed();
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    if (!mounted) {
+      return;
+    }
+
+    _setPressed(false);
+    _isRunningTapAnimation = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = _isPressed
+        ? AppTheme.primaryBrownDark
+        : AppTheme.addToCartClay;
+
+    return AnimatedScale(
+      scale: _isPressed ? 0.985 : 1,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _handleTap,
+          borderRadius: BorderRadius.circular(18),
+          splashColor: Colors.white.withValues(alpha: 0.10),
+          highlightColor: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Add to Cart',
+                  style: widget.labelStyle?.copyWith(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -933,10 +993,7 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _AllProductsSheet extends StatelessWidget {
-  const _AllProductsSheet({
-    required this.isTablet,
-    required this.products,
-  });
+  const _AllProductsSheet({required this.isTablet, required this.products});
 
   final bool isTablet;
   final List<ShopCatalogProduct> products;
@@ -974,16 +1031,16 @@ class _AllProductsSheet extends StatelessWidget {
                 Text(
                   'All Products',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '${products.length} active products available',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSoft,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
                 ),
                 const SizedBox(height: 16),
                 ConstrainedBox(
@@ -996,9 +1053,7 @@ class _AllProductsSheet extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 24),
                             child: Text(
                               'No active products are available right now.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
+                              style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppTheme.textSoft),
                             ),
                           ),
@@ -1010,7 +1065,8 @@ class _AllProductsSheet extends StatelessWidget {
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final product = products[index];
-                            final packSizeLabel = product.packSize.trim().isEmpty
+                            final packSizeLabel =
+                                product.packSize.trim().isEmpty
                                 ? product.categoryName
                                 : '${product.categoryName} • ${product.packSize}';
 
@@ -1128,5 +1184,7 @@ String _formatCurrency(double value, {bool showDecimals = true}) {
     }
   }
 
-  return showDecimals ? 'LKR ${buffer.toString()}.$decimal' : 'LKR ${buffer.toString()}';
+  return showDecimals
+      ? 'LKR ${buffer.toString()}.$decimal'
+      : 'LKR ${buffer.toString()}';
 }

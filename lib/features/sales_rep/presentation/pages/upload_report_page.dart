@@ -916,8 +916,377 @@ class _VisitSummaryBody extends StatelessWidget {
               );
             }).toList(),
           ),
+          const SizedBox(height: 14),
+          _OutletVisitReports(outlets: outlets),
         ],
       ],
+    );
+  }
+}
+
+class _OutletVisitReports extends StatelessWidget {
+  const _OutletVisitReports({required this.outlets});
+
+  final List<Map<String, dynamic>> outlets;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Shop-by-Shop Report Details',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textDark,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...outlets.map((outlet) => _OutletVisitReportCard(outlet: outlet)),
+      ],
+    );
+  }
+}
+
+class _OutletVisitReportCard extends StatelessWidget {
+  const _OutletVisitReportCard({required this.outlet});
+
+  final Map<String, dynamic> outlet;
+
+  @override
+  Widget build(BuildContext context) {
+    final estimated = _readMapList(outlet['estimatedSellThrough']);
+    final issues = _readMapList(outlet['osaIssues']);
+    final expiryItems = _readMapList(outlet['expiryItems']);
+    final promotions = _readMapList(outlet['promotions']);
+    final displayAnswers = _readMapList(outlet['planogramAnswers']);
+    final feedbackAnswers = _readMapList(outlet['outletFeedbackAnswers']);
+    final linkedOrders = _readMapList(outlet['linkedOrders']);
+    final orderFeedbacks = _readMapList(outlet['orderFeedbacks']);
+    final incidents = _readMapList(outlet['incidents']);
+    final competitorNotes = _readString(outlet, const ['competitorNotes']);
+    final outletFeedback = _readString(outlet, const ['outletFeedback']);
+    final status = _readString(outlet, const ['status']) ?? 'UNKNOWN';
+    final photoCount = _readInt(outlet, const ['photoCount']) ?? 0;
+    final planogramOk = _readBool(outlet, const ['planogramOk']);
+    final posmOk = _readBool(outlet, const ['posmOk']);
+    final startedAt = _readDateTime(outlet, const ['startedAt']);
+    final endedAt = _readDateTime(outlet, const ['endedAt']);
+    final durationSeconds = _readInt(outlet, const ['durationSeconds']);
+    final subtitleParts = <String>[
+      if (startedAt != null) 'Started ${_formatDateTime(startedAt)}',
+      if (endedAt != null) 'Ended ${_formatDateTime(endedAt)}',
+      if (durationSeconds != null) _formatSecondsDuration(durationSeconds),
+      if (photoCount > 0) '$photoCount photo${photoCount == 1 ? '' : 's'}',
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceWarm,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.outlineWarm),
+      ),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        collapsedIconColor: AppTheme.primaryBrownDark,
+        iconColor: AppTheme.primaryBrownDark,
+        title: Text(
+          _readString(outlet, const ['outletName', 'shopName']) ??
+              'Visited outlet',
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitleParts.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  subtitleParts.join('  |  '),
+                  style: const TextStyle(
+                    color: AppTheme.textSoft,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MiniBadge(
+                  label: _formatStatus(status),
+                  color: _statusAccent(status),
+                ),
+                if (planogramOk != null)
+                  _MiniBadge(
+                    label: planogramOk ? 'Planogram OK' : 'Planogram issue',
+                    color: planogramOk
+                        ? AppTheme.proceedOrderOlive
+                        : AppTheme.promotionMutedRed,
+                  ),
+                if (posmOk != null)
+                  _MiniBadge(
+                    label: posmOk ? 'POSM OK' : 'POSM issue',
+                    color: posmOk
+                        ? AppTheme.proceedOrderOlive
+                        : AppTheme.promotionMutedRed,
+                  ),
+              ],
+            ),
+          ],
+        ),
+        children: [
+          if (estimated.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Estimated Sales by Product',
+              rows: estimated.map((entry) {
+                final estimatedSales = _readInt(entry, const ['estimatedSales']);
+                final shelfCount = _readInt(entry, const ['shelfCount']) ?? 0;
+                final backroomCount =
+                    _readInt(entry, const ['backroomCount']) ?? 0;
+
+                return _DetailRowData(
+                  title:
+                      _readString(entry, const ['productName']) ?? 'Product',
+                  subtitle:
+                      'Shelf $shelfCount  |  Back room $backroomCount  |  Estimated sold ${estimatedSales ?? 0} unit(s)',
+                  badge: estimatedSales == null ? null : '$estimatedSales sold',
+                  badgeColor: AppTheme.primaryBrown,
+                );
+              }).toList(),
+            ),
+          if (feedbackAnswers.isNotEmpty || outletFeedback != null)
+            _OutletEvidenceSection(
+              title: 'Shop Owner Feedback & Ratings',
+              rows: [
+                ...feedbackAnswers.map((answer) {
+                  final question =
+                      _readString(answer, const ['question']) ?? 'Feedback item';
+                  final value = _readString(answer, const ['answer']) ?? '—';
+                  final isRating =
+                      question.toLowerCase().contains('satisfaction') ||
+                      question.toLowerCase().contains('(1-5)');
+
+                  return _DetailRowData(
+                    title: question,
+                    subtitle: value,
+                    badge: isRating ? '$value / 5' : null,
+                    badgeColor:
+                        isRating ? AppTheme.proceedOrderOlive : null,
+                  );
+                }),
+                if (outletFeedback != null)
+                  _DetailRowData(
+                    title: 'Additional shop owner note',
+                    subtitle: outletFeedback,
+                  ),
+              ],
+            ),
+          if (issues.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'OSA Issues',
+              rows: issues.map((issue) {
+                final productNames = _readStringList(issue['productNames']);
+                final note = _readString(issue, const ['notes', 'note']) ?? '';
+                final issueTag = _readString(issue, const ['tag', 'issueType']) ??
+                    'OSA issue';
+                final subtitleParts = <String>[
+                  if (productNames.isNotEmpty) 'Products: ${productNames.join(', ')}',
+                  if (note.isNotEmpty) note,
+                ];
+
+                return _DetailRowData(
+                  title: issueTag,
+                  subtitle: subtitleParts.join('  |  '),
+                  badge: 'Recorded',
+                  badgeColor: AppTheme.promotionMutedRed,
+                );
+              }).toList(),
+            ),
+          if (expiryItems.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Damage / Expiry Flags',
+              rows: expiryItems.map((entry) {
+                return _DetailRowData(
+                  title:
+                      _readString(entry, const ['productName']) ?? 'Flagged product',
+                  subtitle:
+                      _readString(entry, const ['notes']) ??
+                      'Expired, near-expiry, or damaged stock was flagged.',
+                  badge: 'Flagged',
+                  badgeColor: AppTheme.promotionMutedRed,
+                );
+              }).toList(),
+            ),
+          if (promotions.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Promotions Reviewed',
+              rows: promotions.map((entry) {
+                final informed = _readBool(entry, const ['informed']) ?? false;
+                final feedback = _readString(entry, const ['customerFeedback']);
+                final promoLabel =
+                    _readString(entry, const ['promotionName']) ??
+                    _readString(entry, const ['promotionCode']) ??
+                    _readString(entry, const ['promotionId']) ??
+                    'Promotion';
+
+                return _DetailRowData(
+                  title: promoLabel,
+                  subtitle: [
+                    informed ? 'Shop owner informed' : 'Shop owner not informed',
+                    ?feedback,
+                  ].join('  |  '),
+                  badge: informed ? 'Informed' : 'Pending',
+                  badgeColor: informed
+                      ? AppTheme.proceedOrderOlive
+                      : AppTheme.kOrange,
+                );
+              }).toList(),
+            ),
+          if (competitorNotes != null)
+            _OutletEvidenceSection(
+              title: 'Competitor Notes',
+              rows: [
+                _DetailRowData(
+                  title: 'Competitor activity',
+                  subtitle: competitorNotes,
+                ),
+              ],
+            ),
+          if (displayAnswers.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Display, Planogram & POSM',
+              rows: displayAnswers.map((entry) {
+                final answer = _readString(entry, const ['answer']) ?? '—';
+                return _DetailRowData(
+                  title: _readString(entry, const ['question']) ?? 'Display check',
+                  subtitle: answer,
+                  badge: answer,
+                  badgeColor: _answerAccent(answer),
+                );
+              }).toList(),
+            ),
+          if (linkedOrders.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Orders Linked to This Shop',
+              rows: linkedOrders.map((order) {
+                final status = _readString(order, const ['status']) ?? 'UNKNOWN';
+                final totalAfterDiscount =
+                    _readDouble(order, const ['totalAfterDiscount']) ??
+                    _readDouble(order, const ['totalAmount']);
+                final discount =
+                    _readDouble(order, const ['promotionDiscountTotal']) ?? 0;
+                final itemCount = _readInt(order, const ['itemCount']) ?? 0;
+                final placedAt = _readDateTime(order, const ['placedAt']);
+                final promoCode =
+                    _readString(order, const ['appliedPromotionCode']);
+
+                return _DetailRowData(
+                  title: _readString(order, const ['orderCode']) ?? 'Order',
+                  subtitle: [
+                    if (totalAfterDiscount != null)
+                      'Total Rs. ${_formatCurrency(totalAfterDiscount)}',
+                    if (discount > 0)
+                      'Discount Rs. ${_formatCurrency(discount)}',
+                    if (promoCode != null) 'Promo $promoCode',
+                    '$itemCount line(s)',
+                    if (placedAt != null) _formatDateTime(placedAt),
+                  ].join('  |  '),
+                  badge: _formatStatus(status),
+                  badgeColor: _statusAccent(status),
+                );
+              }).toList(),
+            ),
+          if (orderFeedbacks.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Shop Owner Order Ratings',
+              rows: orderFeedbacks.map((entry) {
+                final rating = _readInt(entry, const ['rating']) ?? 0;
+                final comment = _readString(entry, const ['comment']);
+                final createdAt = _readDateTime(entry, const ['createdAt']);
+                return _DetailRowData(
+                  title:
+                      _readString(entry, const ['orderCode']) ?? 'Order rating',
+                  subtitle: [
+                    ?comment,
+                    if (createdAt != null) _formatDateTime(createdAt),
+                  ].join('  |  '),
+                  badge: _starsForRating(rating),
+                  badgeColor: AppTheme.proceedOrderOlive,
+                );
+              }).toList(),
+            ),
+          if (incidents.isNotEmpty)
+            _OutletEvidenceSection(
+              title: 'Incident Notes',
+              rows: incidents.map((entry) {
+                final severity = _readString(entry, const ['severity']) ?? 'LOW';
+                final createdAt = _readDateTime(entry, const ['createdAt']);
+                return _DetailRowData(
+                  title: _readString(entry, const ['type']) ?? 'Incident',
+                  subtitle: [
+                    _readString(entry, const ['description']) ?? 'Incident recorded',
+                    if (createdAt != null) _formatDateTime(createdAt),
+                  ].join('  |  '),
+                  badge: _formatStatus(severity),
+                  badgeColor: _severityAccent(severity),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OutletEvidenceSection extends StatelessWidget {
+  const _OutletEvidenceSection({required this.title, required this.rows});
+
+  final String title;
+  final List<_DetailRowData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: _DetailGroup(title: title, rows: rows),
+    );
+  }
+}
+
+class _MiniBadge extends StatelessWidget {
+  const _MiniBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }
@@ -1531,6 +1900,17 @@ List<Map<String, dynamic>> _readMapList(dynamic value) {
       .toList();
 }
 
+List<String> _readStringList(dynamic value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+
+  return value
+      .map((entry) => entry?.toString().trim() ?? '')
+      .where((entry) => entry.isNotEmpty && entry != 'null')
+      .toList();
+}
+
 String? _readString(Map<String, dynamic> data, List<String> keys) {
   for (final key in keys) {
     final value = data[key];
@@ -1663,4 +2043,38 @@ Color _severityAccent(String severity) {
     default:
       return AppTheme.securitySlate;
   }
+}
+
+Color _answerAccent(String answer) {
+  switch (answer.trim().toLowerCase()) {
+    case 'yes':
+    case 'aware':
+    case 'high':
+    case '4':
+    case '5':
+      return AppTheme.proceedOrderOlive;
+    case 'partial':
+    case 'medium':
+    case 'needs reminder':
+    case '3':
+      return AppTheme.kOrange;
+    case 'no':
+    case 'not aware':
+    case 'low':
+    case 'not now':
+    case '1':
+    case '2':
+      return AppTheme.promotionMutedRed;
+    default:
+      return AppTheme.securitySlate;
+  }
+}
+
+String _starsForRating(int rating) {
+  if (rating <= 0) {
+    return 'No rating';
+  }
+
+  final safeRating = rating.clamp(0, 5);
+  return '${'★' * safeRating}${'☆' * (5 - safeRating)}';
 }

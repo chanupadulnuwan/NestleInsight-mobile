@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/distributor/data/services/distributor_service.dart';
+
+const _incidentOlive = Color(0xFF575F3B);
+const _incidentBrown = Color(0xFF7C4836);
+const _incidentOliveBorder = Color(0xFFD2D5C4);
+const _incidentTextSoft = Color(0xFF767D60);
 
 const _incidentTypes = <(String, String, IconData)>[
   ('VEHICLE_ACCIDENT', 'Vehicle Accident', Icons.car_crash_outlined),
@@ -26,8 +32,8 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
 
   String? _selectedType;
   bool _submitting = false;
-  String? _error;
   bool _success = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -37,15 +43,22 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
 
   Future<void> _submit() async {
     if (_selectedType == null) {
-      setState(() { _error = 'Select an incident type.'; });
+      setState(() {
+        _error = 'Select an incident type.';
+      });
       return;
     }
     if (_descController.text.trim().length < 10) {
-      setState(() { _error = 'Please describe the incident (at least 10 characters).'; });
+      setState(() {
+        _error = 'Please describe the incident in at least 10 characters.';
+      });
       return;
     }
 
-    setState(() { _submitting = true; _error = null; });
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
 
     try {
       await _service.reportIncident(
@@ -53,27 +66,41 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
         description: _descController.text.trim(),
         assignmentId: widget.assignmentId,
       );
-      if (mounted) setState(() { _success = true; _submitting = false; });
-    } on DistributorServiceException catch (e) {
-      if (mounted) setState(() { _error = e.message; _submitting = false; });
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _success = true;
+        _submitting = false;
+      });
+    } on DistributorServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.message;
+        _submitting = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final isTablet = width >= 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FCFA),
+      backgroundColor: AppTheme.surfaceWarm,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F3D2E),
+        backgroundColor: _incidentOlive,
         foregroundColor: Colors.white,
         title: const Text('Report Incident'),
       ),
       body: _success
           ? _SuccessView(onDone: () => Navigator.of(context).pop())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isTablet ? 28 : 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -81,58 +108,82 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
                     'What happened?',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0F3D2E),
+                      color: _incidentOlive,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Report any special incidents that occurred during your delivery trip. Your territory manager will be notified.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF4A7A62)),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _incidentTextSoft,
+                    ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Incident type grid
                   Text(
                     'Incident Type',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F3D2E),
+                      color: _incidentOlive,
                     ),
                   ),
                   const SizedBox(height: 10),
                   GridView.count(
-                    crossAxisCount: 2,
+                    crossAxisCount: isTablet ? 3 : 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
-                    childAspectRatio: 2.4,
+                    childAspectRatio: isTablet ? 2.9 : 2.4,
                     children: _incidentTypes.map((type) {
                       final (value, label, icon) = type;
                       final isSelected = _selectedType == value;
+
                       return GestureDetector(
-                        onTap: () => setState(() { _selectedType = value; }),
+                        onTap: () {
+                          setState(() {
+                            _selectedType = value;
+                          });
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF0F3D2E) : Colors.white,
+                            color: isSelected ? _incidentOlive : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFF0F3D2E) : const Color(0xFFD4EDDF),
+                              color: isSelected
+                                  ? _incidentOlive
+                                  : _incidentOliveBorder,
                               width: isSelected ? 2 : 1,
                             ),
+                            boxShadow: isSelected
+                                ? <BoxShadow>[
+                                    BoxShadow(
+                                      color: _incidentOlive.withAlpha(30),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ]
+                                : const <BoxShadow>[],
                           ),
                           child: Row(
                             children: [
-                              Icon(icon, size: 20, color: isSelected ? Colors.white : const Color(0xFF4A7A62)),
+                              Icon(
+                                icon,
+                                size: 20,
+                                color: isSelected ? Colors.white : _incidentOlive,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   label,
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected ? Colors.white : const Color(0xFF0F3D2E),
+                                    fontWeight: FontWeight.w700,
+                                    color:
+                                        isSelected ? Colors.white : _incidentOlive,
                                   ),
                                 ),
                               ),
@@ -142,15 +193,12 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
                       );
                     }).toList(),
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Description
                   Text(
                     'Description',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F3D2E),
+                      color: _incidentOlive,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -158,23 +206,27 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
                     controller: _descController,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      hintText: 'Describe what happened in detail…',
-                      hintStyle: const TextStyle(color: Color(0xFF9CB8A8)),
+                      hintText: 'Describe what happened in detail...',
+                      hintStyle: const TextStyle(color: _incidentTextSoft),
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.all(16),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD4EDDF)),
+                        borderSide: const BorderSide(
+                          color: _incidentOliveBorder,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFF1E7A52), width: 1.5),
+                        borderSide: const BorderSide(
+                          color: _incidentOlive,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-
                   if (_error != null) ...[
                     const SizedBox(height: 14),
                     Container(
@@ -184,29 +236,38 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFE0A7A3)),
                       ),
-                      child: Text(_error!, style: const TextStyle(color: Color(0xFF9B4B46), fontSize: 13)),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Color(0xFF9B4B46),
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ],
-
                   const SizedBox(height: 28),
-
                   FilledButton.icon(
                     onPressed: _submitting ? null : _submit,
-                    icon: const Icon(Icons.send_outlined),
-                    label: _submitting
+                    icon: _submitting
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
                           )
-                        : const Text(
-                            'Report Incident',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                          ),
+                        : const Icon(Icons.send_outlined),
+                    label: const Text(
+                      'Report Incident',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFB45309),
+                      backgroundColor: _incidentBrown,
                       minimumSize: const Size(double.infinity, 54),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -230,29 +291,33 @@ class _SuccessView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle, color: Color(0xFF1E7A52), size: 72),
+            const Icon(Icons.check_circle, color: _incidentOlive, size: 72),
             const SizedBox(height: 16),
             Text(
               'Incident Reported',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF0F3D2E),
+                color: _incidentOlive,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Your territory manager has been notified.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF4A7A62)),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: _incidentTextSoft,
+              ),
             ),
             const SizedBox(height: 28),
             FilledButton(
               onPressed: onDone,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1E7A52),
+                backgroundColor: _incidentBrown,
                 minimumSize: const Size(200, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: const Text('Back'),
             ),

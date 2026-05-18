@@ -19,7 +19,6 @@ class WarehouseReturnPage extends StatefulWidget {
 class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   final _service = DistributorService();
   final _cashReturnedController = TextEditingController();
-  final _varianceReasonController = TextEditingController();
   final List<TextEditingController> _pinControllers = List.generate(
     6,
     (_) => TextEditingController(),
@@ -31,7 +30,6 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   bool _submitting = false;
   bool _success = false;
   String? _error;
-  String _varianceType = 'CASH_SHORT';
   String? _earlyClosureReason;
 
   String get _currentPin => _pinControllers.map((controller) => controller.text).join();
@@ -93,7 +91,6 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
   @override
   void dispose() {
     _cashReturnedController.dispose();
-    _varianceReasonController.dispose();
     for (final controller in _pinControllers) {
       controller.dispose();
     }
@@ -140,9 +137,6 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
       final message = await _service.requestWarehouseReturnPin(
         assignmentId: widget.assignment.id,
         cashReturnedAmount: cashReturnedAmount,
-        cashVarianceType: _hasCashMismatch ? _varianceType : null,
-        cashVarianceReason:
-            _hasCashMismatch ? _varianceReasonController.text.trim() : null,
         earlyClosureReason: _earlyClosureReason,
       );
 
@@ -196,9 +190,6 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
         tmPin: pin,
         items: const <ReturnItemInput>[],
         cashReturnedAmount: cashReturnedAmount,
-        cashVarianceType: _hasCashMismatch ? _varianceType : null,
-        cashVarianceReason:
-            _hasCashMismatch ? _varianceReasonController.text.trim() : null,
         earlyClosureReason: _earlyClosureReason,
       );
 
@@ -366,7 +357,7 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Expected today amount: LKR ${_expectedCash.toStringAsFixed(2)}. This is based on completed deliveries minus the value of the recorded shop-owner returns above.',
+                    'Expected today amount: LKR ${_expectedCash.toStringAsFixed(2)}. This already subtracts the recorded shop-owner return value from the completed-delivery cash total.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSoft,
                     ),
@@ -387,58 +378,21 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _varianceType,
-                    decoration: const InputDecoration(
-                      labelText: 'Mismatch type (if needed)',
-                      prefixIcon: Icon(Icons.rule_folder_outlined),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'CASH_SHORT',
-                        child: Text('Cash short'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CASH_EXCESS',
-                        child: Text('Cash excess'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'RETURN_ADJUSTMENT',
-                        child: Text('Return adjustment'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'OTHER',
-                        child: Text('Other'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _varianceType = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _varianceReasonController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Mismatch reason',
-                      hintText:
-                          'Required only when the returned cash does not match the expected amount.',
-                      alignLabelWithHint: true,
-                    ),
-                  ),
                   if (_hasCashMismatch) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      'Cash mismatch: LKR ${(_cashReturnedAmount - _expectedCash).toStringAsFixed(2)}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.rejectOrderRed,
-                        fontWeight: FontWeight.w700,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF0EF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE8B4AF)),
+                      ),
+                      child: Text(
+                        'The system will flag this cash difference for your Territory Manager: LKR ${(_cashReturnedAmount - _expectedCash).toStringAsFixed(2)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppTheme.rejectOrderRed,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -455,8 +409,8 @@ class _WarehouseReturnPageState extends State<WarehouseReturnPage> {
                   const SizedBox(height: 6),
                   Text(
                     _reviewRequested
-                        ? 'Your review request has been sent. Once the Territory Manager checks the cash and return list, they can tell you the 6-digit end-route PIN.'
-                        : 'Send the route-close review to your Territory Manager first. They will check the returned products, undelivered orders, and cash before generating the end-route PIN.',
+                        ? 'Your review request has been sent. Once the Territory Manager checks the order list, returned products, and returned cash, they can tell you the 6-digit end-route PIN.'
+                        : 'Send the route-close review to your Territory Manager first. They will check the order list, returned products, and returned cash before generating the end-route PIN.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSoft,
                     ),

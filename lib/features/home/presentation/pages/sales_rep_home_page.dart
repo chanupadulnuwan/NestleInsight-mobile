@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/auth/data/services/auth_service.dart';
 import 'package:mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile/features/home/presentation/cubit/home_cubit.dart';
 import 'package:mobile/features/home/presentation/cubit/home_state.dart';
@@ -20,6 +23,7 @@ import 'package:mobile/features/sales_rep/presentation/pages/smart_route_page.da
 import 'package:mobile/features/sales_rep/presentation/pages/start_route_page.dart';
 import 'package:mobile/features/home/presentation/controllers/sales_rep_activity_cubit.dart';
 import 'package:mobile/features/home/presentation/widgets/sales_rep_activity_tab.dart';
+import 'package:mobile/features/home/presentation/widgets/sales_rep_profile_sheet.dart';
 import 'package:mobile/features/sales_rep/presentation/pages/upload_report_page.dart';
 
 class SalesRepHomePage extends StatelessWidget {
@@ -59,7 +63,13 @@ class _SalesRepHomeView extends StatefulWidget {
 }
 
 class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
+  static const String _profileImageStoragePrefix = 'sales_rep_profile_image_';
+
+  final AuthService _authService = AuthService();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
   int _currentIndex = 0;
+  String? _profileImagePath;
+  String? _profileImageLoadedFor;
 
   Future<void> _refreshHome() async {
     if (!mounted) {
@@ -68,11 +78,114 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
     await context.read<HomeCubit>().loadHomeData();
   }
 
+  String _profileImageStorageKey(String username) =>
+      '$_profileImageStoragePrefix${username.trim().toLowerCase()}';
+
+  Future<void> _loadProfileImage(String username) async {
+    _profileImageLoadedFor = username;
+    final storedPath = await _storage.read(
+      key: _profileImageStorageKey(username),
+    );
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _profileImagePath = storedPath;
+    });
+  }
+
+  Future<void> _updateProfileImage(HomeLoaded state, String? path) async {
+    final normalizedPath = path?.trim();
+    final storageKey = _profileImageStorageKey(state.username);
+
+    if (normalizedPath == null || normalizedPath.isEmpty) {
+      await _storage.delete(key: storageKey);
+    } else {
+      await _storage.write(key: storageKey, value: normalizedPath);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _profileImagePath = normalizedPath == null || normalizedPath.isEmpty
+          ? null
+          : normalizedPath;
+    });
+  }
+
+  Future<void> _handleProfileSaved(
+    String previousUsername,
+    SalesRepProfileData profile,
+  ) async {
+    final previousKey = _profileImageStorageKey(previousUsername);
+    final nextKey = _profileImageStorageKey(profile.username);
+    final normalizedPath = _profileImagePath?.trim();
+
+    if (previousKey != nextKey) {
+      if (normalizedPath != null && normalizedPath.isNotEmpty) {
+        await _storage.write(key: nextKey, value: normalizedPath);
+      }
+      await _storage.delete(key: previousKey);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _profileImageLoadedFor = profile.username;
+    });
+
+    await context.read<HomeCubit>().loadHomeData();
+  }
+
+  void _ensureProfileImageLoaded(String username) {
+    if (_profileImageLoadedFor == username) {
+      return;
+    }
+
+    _loadProfileImage(username);
+  }
+
   Future<void> _pushAndRefresh(Widget page) async {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => page));
     await _refreshHome();
+  }
+
+  Future<void> _openProfileSheet(HomeLoaded state) async {
+    await _loadProfileImage(state.username);
+    if (!mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SalesRepProfileSheet(
+        profile: SalesRepProfileData(
+          firstName: state.firstName,
+          lastName: '',
+          fullName: state.fullName,
+          username: state.username,
+          email: state.email,
+          mobileNumber: state.mobileNumber,
+          territoryName: state.territoryName,
+          hasActiveRoute: state.hasActiveRoute,
+          hasReportableRoute: state.hasReportableRoute,
+          shopsLeft: state.shopsLeft,
+        ),
+        initialImagePath: _profileImagePath,
+        onProfileImageChanged: (path) => _updateProfileImage(state, path),
+        onLogoutRequested: _handleLogout,
+        onProfileSaved: _handleProfileSaved,
+      ),
+    );
   }
 
   String _buildShopsTitle(HomeLoaded state) {
@@ -105,40 +218,86 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.kCream,
-      body: SafeArea(
-        child: BlocBuilder<HomeCubit, HomeState>(
-          builder: (context, state) {
-            if (state is HomeInitial || state is HomeLoading) {
-              return _buildShimmerLoading();
-            }
-            if (state is HomeError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    state.message,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: AppTheme.kTextDark),
+      backgroundColor: Colors.white,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[Colors.white, Color(0xFFFFFCF8)],
+          ),
+        ),
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              top: -140,
+              left: -110,
+              child: IgnorePointer(
+                child: Container(
+                  width: 280,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: <Color>[Color(0x26CFAE73), Color(0x00CFAE73)],
+                    ),
                   ),
                 ),
-              );
-            }
-            if (state is! HomeLoaded) {
-              return const SizedBox.shrink();
-            }
+              ),
+            ),
+            Positioned(
+              right: -120,
+              bottom: -130,
+              child: IgnorePointer(
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: <Color>[Color(0x1F8A6B53), Color(0x008A6B53)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: BlocBuilder<HomeCubit, HomeState>(
+                builder: (context, state) {
+                  if (state is HomeInitial || state is HomeLoading) {
+                    return _buildShimmerLoading();
+                  }
+                  if (state is HomeError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          state.message,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppTheme.kTextDark),
+                        ),
+                      ),
+                    );
+                  }
+                  if (state is! HomeLoaded) {
+                    return const SizedBox.shrink();
+                  }
 
-            return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: _currentIndex == 0
-                  ? _buildHomeTab(context, state)
-                  : _currentIndex == 1
-                  ? const SalesRepActivityTab()
-                  : _buildSettingsTab(context, state),
-            );
-          },
+                  _ensureProfileImageLoaded(state.username);
+
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _currentIndex == 0
+                        ? _buildHomeTab(context, state)
+                        : _currentIndex == 1
+                        ? const SalesRepActivityTab()
+                        : _buildSettingsTab(context, state),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
@@ -215,32 +374,46 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
   }
 
   Widget _buildHomeTab(BuildContext context, HomeLoaded state) {
+    final isTablet = MediaQuery.sizeOf(context).width >= 720;
+
     return SingleChildScrollView(
       key: const ValueKey('sales-rep-home'),
       physics: const BouncingScrollPhysics(),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeroSection(context, state),
-            const SizedBox(height: 24),
-            Text(
-              'Work Dashboard',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.kTextDark,
-                fontWeight: FontWeight.w800,
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isTablet ? 1020 : 680),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroSection(context, state),
+                const SizedBox(height: 24),
+                Text(
+                  'Work Dashboard',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppTheme.kTextDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildDashboardList(context, state),
+              ],
             ),
-            const SizedBox(height: 14),
-            _buildDashboardList(context, state),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeroSection(BuildContext context, HomeLoaded state) {
+    final isTablet = MediaQuery.sizeOf(context).width >= 720;
+    final profilePath = _profileImagePath?.trim();
+    final hasProfileImage =
+        profilePath != null &&
+        profilePath.isNotEmpty &&
+        File(profilePath).existsSync();
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
@@ -277,45 +450,36 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
               ),
             ),
             Positioned(
-              right: -8,
-              top: 18,
-              child: SizedBox(
-                width: 170,
-                height: 128,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: const [
-                    _HeroProductImage(
-                      assetPath: 'assets/images/products/milo_400g.png',
-                      left: 6,
-                      top: 24,
-                      height: 78,
-                    ),
-                    _HeroProductImage(
-                      assetPath: 'assets/images/products/nescafe_3in1.png',
-                      left: 68,
-                      top: 8,
-                      height: 94,
-                    ),
-                    _HeroProductImage(
-                      assetPath: 'assets/images/products/maggi_chicken.png',
-                      left: 116,
-                      top: 26,
-                      height: 74,
-                    ),
-                    _HeroProductImage(
-                      assetPath:
-                          'assets/images/products/nestle_everyday_clean.png',
-                      left: 90,
-                      top: 62,
-                      height: 54,
-                    ),
-                  ],
+              top: -30,
+              right: -18,
+              child: Container(
+                width: isTablet ? 220 : 160,
+                height: isTablet ? 220 : 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withAlpha(18),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -56,
+              left: -28,
+              child: Container(
+                width: isTablet ? 180 : 136,
+                height: isTablet ? 180 : 136,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withAlpha(10),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              padding: EdgeInsets.fromLTRB(
+                isTablet ? 24 : 20,
+                isTablet ? 20 : 18,
+                isTablet ? 24 : 20,
+                isTablet ? 20 : 18,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -331,28 +495,46 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                               ),
                         ),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.8),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _openProfileSheet(state),
+                          borderRadius: BorderRadius.circular(999),
+                          child: Ink(
+                            width: isTablet ? 50 : 46,
+                            height: isTablet ? 50 : 46,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(28),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withAlpha(80),
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: hasProfileImage
+                                  ? Image.file(
+                                      File(profilePath),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const Icon(
+                                        Icons.person_outline,
+                                        size: 20,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.person_outline,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                            ),
                           ),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.logout,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          onPressed: () => _handleLogout(context),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  SizedBox(
-                    width: 170,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: isTablet ? 360 : 240),
                     child: Text(
                       'Hello ${state.firstName}',
                       style: Theme.of(context).textTheme.headlineSmall
@@ -362,26 +544,29 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                           ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: isTablet ? 18 : 14),
                   Row(
                     children: [
                       Expanded(
+                        flex: isTablet ? 5 : 4,
                         child: _buildHeroInfoCard(
                           context,
                           title: 'Territory',
                           value: state.territoryName,
                           icon: Icons.location_on_outlined,
+                          isTablet: isTablet,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: isTablet ? 14 : 12),
                       Expanded(
-                        flex: 2,
+                        flex: isTablet ? 7 : 6,
                         child: _buildHeroInfoCard(
                           context,
                           title: _buildShopsTitle(state),
                           value: _buildShopsSubtitle(state),
                           icon: Icons.local_shipping_outlined,
                           alignStart: true,
+                          isTablet: isTablet,
                         ),
                       ),
                     ],
@@ -401,10 +586,16 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
     required String value,
     required IconData icon,
     bool alignStart = false,
+    required bool isTablet,
   }) {
+    final useStartAlignment = alignStart || isTablet;
+
     return Container(
-      height: 96,
-      padding: const EdgeInsets.all(14),
+      height: isTablet ? 88 : 96,
+      padding: EdgeInsets.symmetric(
+        horizontal: isTablet ? 16 : 14,
+        vertical: isTablet ? 12 : 14,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(22),
@@ -412,7 +603,7 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: alignStart
+        crossAxisAlignment: useStartAlignment
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -422,7 +613,7 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           Flexible(
             child: Text(
               title,
-              textAlign: alignStart ? TextAlign.left : TextAlign.center,
+              textAlign: useStartAlignment ? TextAlign.left : TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppTheme.kTextDark,
                 fontWeight: FontWeight.w700,
@@ -436,13 +627,13 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
           Flexible(
             child: Text(
               value,
-              textAlign: alignStart ? TextAlign.left : TextAlign.center,
+              textAlign: useStartAlignment ? TextAlign.left : TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.kBrown,
                 fontWeight: FontWeight.w600,
                 height: 1.1,
               ),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -456,133 +647,169 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
     final routeId = state.activeRouteId ?? '';
     final territoryId = state.activeTerritoryId ?? state.territoryId ?? '';
     final reportRouteId = state.reportableRouteId ?? '';
-
-    return Column(
-      children: [
-        _buildActionCard(
-          context: context,
-          title: 'Start The Day',
-          subtitle: 'Select vehicle, opening stock, auto carry',
-          icon: Icons.wb_sunny_outlined,
-          color: AppTheme.kOrange,
-          isLocked: false,
-          onTap: () => _pushAndRefresh(const StartRoutePage()),
-        ),
-        _buildActionCard(
-          context: context,
-          title: 'Smart Route',
-          subtitle: 'Plan the most efficient route',
-          icon: Icons.alt_route,
-          color: AppTheme.kBrown,
-          isLocked: false,
-          onTap: () => _pushAndRefresh(
-            SmartRoutePage(
-              routeId: state.activeRouteId,
-              territoryId: state.activeTerritoryId,
-            ),
+    final actions = <_DashboardActionItem>[
+      _DashboardActionItem(
+        title: 'Start The Day',
+        subtitle: 'Select vehicle, opening stock, auto carry',
+        icon: Icons.wb_sunny_outlined,
+        color: AppTheme.kOrange,
+        isLocked: false,
+        onTap: () => _pushAndRefresh(const StartRoutePage()),
+      ),
+      _DashboardActionItem(
+        title: 'Smart Route',
+        subtitle: 'Plan the most efficient route',
+        icon: Icons.alt_route,
+        color: AppTheme.kBrown,
+        isLocked: false,
+        onTap: () => _pushAndRefresh(
+          SmartRoutePage(
+            routeId: state.activeRouteId,
+            territoryId: state.activeTerritoryId,
           ),
         ),
-        _buildActionCard(
-          context: context,
-          title: 'Outlet Visit',
-          subtitle: 'OSA, order taking, deliveries, and promotions',
-          icon: Icons.storefront_outlined,
-          color: AppTheme.kBrown,
-          isLocked: !hasRoute,
-          onTap: () => _pushAndRefresh(
-            OutletVisitPage(routeId: routeId, territoryId: territoryId),
+      ),
+      _DashboardActionItem(
+        title: 'Outlet Visit',
+        subtitle: 'OSA, order taking, deliveries, and promotions',
+        icon: Icons.storefront_outlined,
+        color: AppTheme.kBrown,
+        isLocked: !hasRoute,
+        onTap: () => _pushAndRefresh(
+          OutletVisitPage(routeId: routeId, territoryId: territoryId),
+        ),
+      ),
+      _DashboardActionItem(
+        title: 'Returning Products',
+        subtitle: 'Manage product returns efficiently',
+        icon: Icons.assignment_return_outlined,
+        color: AppTheme.kBrown,
+        isLocked: !hasRoute,
+        onTap: () => _pushAndRefresh(
+          BlocProvider(
+            create: (_) => SalesReturnCubit(),
+            child: ReturningProductsPage(routeId: routeId),
           ),
         ),
-        _buildActionCard(
-          context: context,
-          title: 'Returning Products',
-          subtitle: 'Manage product returns efficiently',
-          icon: Icons.assignment_return_outlined,
-          color: AppTheme.kBrown,
-          isLocked: !hasRoute,
-          onTap: () => _pushAndRefresh(
-            BlocProvider(
-              create: (_) => SalesReturnCubit(),
-              child: ReturningProductsPage(routeId: routeId),
-            ),
+      ),
+      _DashboardActionItem(
+        title: 'End Route',
+        subtitle: 'Hand over returns and remaining lorry stock',
+        icon: Icons.fact_check_outlined,
+        color: AppTheme.proceedOrderOlive,
+        isLocked: !hasRoute,
+        onTap: () => _pushAndRefresh(EndRoutePage(routeId: routeId)),
+      ),
+      _DashboardActionItem(
+        title: 'Uploads',
+        subtitle: 'Generate, review, and upload route reports',
+        icon: Icons.cloud_upload_outlined,
+        color: AppTheme.kBrown,
+        isLocked: !state.hasReportableRoute,
+        onTap: () => _pushAndRefresh(
+          BlocProvider(
+            create: (_) => UploadReportCubit()..loadMyReports(),
+            child: UploadReportPage(routeId: reportRouteId),
           ),
         ),
-        _buildActionCard(
-          context: context,
-          title: 'End Route',
-          subtitle: 'Hand over returns and remaining lorry stock',
-          icon: Icons.fact_check_outlined,
-          color: AppTheme.proceedOrderOlive,
-          isLocked: !hasRoute,
-          onTap: () => _pushAndRefresh(EndRoutePage(routeId: routeId)),
-        ),
-        _buildActionCard(
-          context: context,
-          title: 'Uploads',
-          subtitle: 'Generate, review, and upload route reports',
-          icon: Icons.cloud_upload_outlined,
-          color: AppTheme.kBrown,
-          isLocked: !state.hasReportableRoute,
-          onTap: () => _pushAndRefresh(
-            BlocProvider(
-              create: (_) => UploadReportCubit()..loadMyReports(),
-              child: UploadReportPage(routeId: reportRouteId),
-            ),
+      ),
+      _DashboardActionItem(
+        title: 'Register New Outlet',
+        subtitle: 'Add a new outlet under your assigned territory',
+        icon: Icons.add_business_outlined,
+        color: AppTheme.kOrange,
+        isLocked: false,
+        onTap: () {
+          final territoryId =
+              widget.normalizeTerritoryId(state.activeTerritoryId) ??
+              widget.normalizeTerritoryId(state.territoryId);
+          _pushAndRefresh(RegisterOutletPage(territoryId: territoryId ?? ''));
+        },
+      ),
+      _DashboardActionItem(
+        title: 'Place an Order',
+        subtitle: 'Create assisted orders for assigned shops',
+        icon: Icons.add_shopping_cart_outlined,
+        color: AppTheme.proceedOrderOlive,
+        isLocked: !hasRoute,
+        onTap: () => _pushAndRefresh(
+          BlocProvider(
+            create: (_) => RepOrderCubit(),
+            child: PlaceOrderPage(routeId: routeId),
           ),
         ),
-        _buildActionCard(
-          context: context,
-          title: 'Register New Outlet',
-          subtitle: 'Add a new outlet under your assigned territory',
-          icon: Icons.add_business_outlined,
-          color: AppTheme.kOrange,
-          isLocked: false,
-          onTap: () {
-            final territoryId =
-                widget.normalizeTerritoryId(state.activeTerritoryId) ??
-                widget.normalizeTerritoryId(state.territoryId);
-            _pushAndRefresh(RegisterOutletPage(territoryId: territoryId ?? ''));
-          },
-        ),
-        _buildActionCard(
-          context: context,
-          title: 'Place an Order',
-          subtitle: 'Create assisted orders for assigned shops',
-          icon: Icons.add_shopping_cart_outlined,
-          color: AppTheme.proceedOrderOlive,
-          isLocked: !hasRoute,
-          onTap: () => _pushAndRefresh(
-            BlocProvider(
-              create: (_) => RepOrderCubit(),
-              child: PlaceOrderPage(routeId: routeId),
-            ),
-          ),
-        ),
-        _buildActionCard(
-          context: context,
-          title: 'Report Incident',
-          subtitle: 'Capture route issues and field exceptions',
-          icon: Icons.warning_amber_rounded,
-          color: AppTheme.promotionMutedRed,
-          isLocked: !hasRoute,
-          onTap: () {
-            final routeId = state.activeRouteId;
-            final territoryId = state.activeTerritoryId;
-            if (routeId == null || territoryId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Missing route or territory details'),
-                ),
-              );
-              return;
-            }
-
-            _pushAndRefresh(
-              ReportIncidentPage(routeId: routeId, territoryId: territoryId),
+      ),
+      _DashboardActionItem(
+        title: 'Report Incident',
+        subtitle: 'Capture route issues and field exceptions',
+        icon: Icons.warning_amber_rounded,
+        color: AppTheme.promotionMutedRed,
+        isLocked: !hasRoute,
+        onTap: () {
+          final routeId = state.activeRouteId;
+          final territoryId = state.activeTerritoryId;
+          if (routeId == null || territoryId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Missing route or territory details'),
+              ),
             );
-          },
-        ),
-      ],
+            return;
+          }
+
+          _pushAndRefresh(
+            ReportIncidentPage(routeId: routeId, territoryId: territoryId),
+          );
+        },
+      ),
+    ];
+    final isTablet = MediaQuery.sizeOf(context).width >= 720;
+
+    if (!isTablet) {
+      return Column(
+        children: [
+          for (var index = 0; index < actions.length; index++) ...[
+            _buildActionCard(
+              context: context,
+              title: actions[index].title,
+              subtitle: actions[index].subtitle,
+              icon: actions[index].icon,
+              color: actions[index].color,
+              isLocked: actions[index].isLocked,
+              onTap: actions[index].onTap,
+              isTabletLayout: false,
+            ),
+            if (index != actions.length - 1) const SizedBox(height: 14),
+          ],
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = (constraints.maxWidth - 16) / 2;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: actions
+              .map(
+                (action) => SizedBox(
+                  width: cardWidth,
+                  child: _buildActionCard(
+                    context: context,
+                    title: action.title,
+                    subtitle: action.subtitle,
+                    icon: action.icon,
+                    color: action.color,
+                    isLocked: action.isLocked,
+                    onTap: action.onTap,
+                    isTabletLayout: true,
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
     );
   }
 
@@ -594,34 +821,40 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
     required Color color,
     required bool isLocked,
     VoidCallback? onTap,
+    required bool isTabletLayout,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isLocked ? null : onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: isLocked ? Colors.grey.shade200 : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isLocked
-                    ? Colors.transparent
-                    : AppTheme.kBrown.withValues(alpha: 0.14),
-              ),
-              boxShadow: [
-                if (!isLocked)
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.08),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isLocked ? null : onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: isLocked ? Colors.grey.shade200 : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isLocked
+                  ? AppTheme.primaryBrownDark.withValues(alpha: 0.18)
+                  : AppTheme.primaryBrownDark.withValues(alpha: 0.28),
+              width: isLocked ? 1.0 : 1.2,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            boxShadow: [
+              if (!isLocked)
+                BoxShadow(
+                  color: color.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+            ],
+          ),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTabletLayout ? 18 : 16,
+            vertical: isTabletLayout ? 18 : 16,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: isTabletLayout ? 118 : 88),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   width: 52,
@@ -641,6 +874,7 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         title,
@@ -661,6 +895,8 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
                               : AppTheme.textSoft,
                           fontWeight: FontWeight.w500,
                         ),
+                        maxLines: isTabletLayout ? 3 : 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -847,11 +1083,10 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
     return 'Good Evening';
   }
 
-  Future<void> _handleLogout(BuildContext context) async {
-    const storage = FlutterSecureStorage();
-    await storage.deleteAll();
+  Future<void> _handleLogout() async {
+    await _authService.logout();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     Navigator.pushAndRemoveUntil(
       context,
@@ -861,36 +1096,20 @@ class _SalesRepHomeViewState extends State<_SalesRepHomeView> {
   }
 }
 
-class _HeroProductImage extends StatelessWidget {
-  const _HeroProductImage({
-    required this.assetPath,
-    required this.left,
-    required this.top,
-    required this.height,
+class _DashboardActionItem {
+  const _DashboardActionItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.isLocked,
+    required this.onTap,
   });
 
-  final String assetPath;
-  final double left;
-  final double top;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.24),
-              blurRadius: 12,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Image.asset(assetPath, height: height, fit: BoxFit.contain),
-      ),
-    );
-  }
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final bool isLocked;
+  final VoidCallback onTap;
 }
