@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/core/services/localization_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
 import 'package:mobile/features/orders/domain/shop_order.dart';
 import 'package:mobile/features/home/presentation/widgets/activity_card.dart';
 import 'package:mobile/features/profile/domain/shop_owner_profile.dart';
+import 'package:mobile/features/settings/presentation/widgets/language_selection_sheet.dart';
+
 
 class ShopOwnerOrdersTab extends StatelessWidget {
   const ShopOwnerOrdersTab({
@@ -446,13 +449,30 @@ class ShopOwnerSettingsTab extends StatelessWidget {
   final VoidCallback onInsightsTap;
   final VoidCallback onFeedbackTap;
 
+  Future<void> _openLanguageSettingsSheet(BuildContext context) async {
+    final message = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const LanguageSelectionSheet(),
+    );
+
+    if (!context.mounted || message == null || message.isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'Settings',
+          context.translate('settings'),
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: AppTheme.textDark,
             fontWeight: FontWeight.w800,
@@ -460,7 +480,7 @@ class ShopOwnerSettingsTab extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Manage security for your account under the same shop-owner theme.',
+          context.translate('settings_desc'),
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
@@ -497,14 +517,14 @@ class ShopOwnerSettingsTab extends StatelessWidget {
                   ),
                 ),
                 title: Text(
-                  'Insights',
+                  context.translate('insights'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppTheme.textDark,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 subtitle: Text(
-                  'View your shop\'s sales performance chart and top trending products.',
+                  context.translate('insights_desc'),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
@@ -528,14 +548,14 @@ class ShopOwnerSettingsTab extends StatelessWidget {
                   ),
                 ),
                 title: Text(
-                  'Security',
+                  context.translate('security'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppTheme.textDark,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 subtitle: Text(
-                  'Change your password by entering the current password and the new password twice.',
+                  context.translate('security_desc'),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
@@ -559,14 +579,14 @@ class ShopOwnerSettingsTab extends StatelessWidget {
                   ),
                 ),
                 title: Text(
-                  'Feedback',
+                  context.translate('feedback'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppTheme.textDark,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 subtitle: Text(
-                  'Share product feedback, service notes, or quick shop updates from Settings.',
+                  context.translate('feedback_desc'),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
@@ -577,8 +597,39 @@ class ShopOwnerSettingsTab extends StatelessWidget {
               Divider(color: AppTheme.outlineWarm.withAlpha(110)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceTint,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.language_rounded,
+                    color: AppTheme.primaryBrown,
+                  ),
+                ),
                 title: Text(
-                  'Account',
+                  context.translate('language_settings'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: Text(
+                  context.translate('language_settings_desc'),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSoft),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openLanguageSettingsSheet(context),
+              ),
+              Divider(color: AppTheme.outlineWarm.withAlpha(110)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  context.translate('account'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppTheme.textDark,
                     fontWeight: FontWeight.w700,

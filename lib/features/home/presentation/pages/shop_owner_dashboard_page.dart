@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/core/services/localization_service.dart';
 import 'package:mobile/features/activity/data/services/activity_feed_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+
 import 'package:mobile/features/activity/presentation/widgets/feedback_sheet.dart';
 import 'package:mobile/features/auth/data/services/auth_service.dart';
 import 'package:mobile/features/auth/presentation/pages/login_page.dart';
@@ -145,14 +147,14 @@ class _ShopOwnerDashboardPageState extends State<ShopOwnerDashboardPage> {
   String get _greetingText {
     final hour = _currentTime.hour;
     if (hour < 12) {
-      return 'Good morning';
+      return context.translate('good_morning');
     }
 
     if (hour < 17) {
-      return 'Good afternoon';
+      return context.translate('good_afternoon');
     }
 
-    return 'Good evening';
+    return context.translate('good_evening');
   }
 
   Future<void> _logout() async {
@@ -642,10 +644,10 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <({IconData icon, String label})>[
-      (icon: Icons.home_outlined, label: 'Home'),
-      (icon: Icons.inventory_2_outlined, label: 'Orders'),
-      (icon: Icons.notifications_none_outlined, label: 'Activity'),
-      (icon: Icons.settings_outlined, label: 'Settings'),
+      (icon: Icons.home_outlined, label: context.translate('home')),
+      (icon: Icons.inventory_2_outlined, label: context.translate('orders')),
+      (icon: Icons.notifications_none_outlined, label: context.translate('activity')),
+      (icon: Icons.settings_outlined, label: context.translate('settings')),
     ];
 
     return SafeArea(
