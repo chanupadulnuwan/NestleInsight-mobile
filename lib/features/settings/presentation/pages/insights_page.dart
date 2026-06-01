@@ -1,8 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:mobile/core/services/localization_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/settings/data/services/insights_service.dart';
+
 
 class InsightsPage extends StatefulWidget {
   const InsightsPage({super.key});
@@ -60,7 +62,7 @@ class _InsightsPageState extends State<InsightsPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Shop Insights',
+          context.translate('shop_insights'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: AppTheme.textDark,
             fontWeight: FontWeight.w800,
@@ -125,7 +127,7 @@ class _InsightsBodyState extends State<_InsightsBody> {
           _SummaryHeroCard(period: period),
           const SizedBox(height: 24),
           _SectionLabel(
-            title: 'Sales Performance',
+            title: context.translate('sales_performance'),
             subtitle:
                 'Product sales view for ${period.rangeLabel.toLowerCase()}',
           ),
@@ -147,7 +149,7 @@ class _InsightsBodyState extends State<_InsightsBody> {
           _ProductSalesChartCard(period: period),
           const SizedBox(height: 28),
           _SectionLabel(
-            title: 'Top Trending Products',
+            title: context.translate('top_trending_products'),
             subtitle:
                 'Sorted by cases sold in ${period.rangeLabel.toLowerCase()}',
           ),
@@ -310,7 +312,7 @@ class _SummaryHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Performance Summary',
+                      context.translate('performance_summary'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppTheme.textDark,
                         fontWeight: FontWeight.w800,
@@ -434,22 +436,22 @@ class _MetricGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <_MetricItem>[
       _MetricItem(
-        label: 'Revenue',
+        label: context.translate('revenue'),
         value: _formatCurrency(metrics.totalRevenue),
         accent: AppTheme.primaryBrown,
       ),
       _MetricItem(
-        label: 'Cases Sold',
+        label: context.translate('cases_sold'),
         value: '${metrics.totalCases}',
         accent: AppTheme.addToCartClay,
       ),
       _MetricItem(
-        label: 'Active SKUs',
+        label: context.translate('active_skus'),
         value: '${metrics.activeProducts}',
         accent: AppTheme.proceedOrderOlive,
       ),
       _MetricItem(
-        label: 'Vs Previous',
+        label: context.translate('vs_previous'),
         value: _formatGrowth(metrics.growthRate),
         accent: metrics.growthRate >= 0
             ? AppTheme.proceedOrderOlive

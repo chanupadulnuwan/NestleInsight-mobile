@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile/core/services/localization_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+
 import 'package:mobile/core/widgets/product_image_box.dart';
 import 'package:mobile/features/home/domain/shop_catalog_product.dart';
 import 'package:mobile/features/home/presentation/controllers/shop_owner_dashboard_controller.dart';
@@ -84,7 +86,7 @@ class ShopOwnerHomeTab extends StatelessWidget {
               foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('Proceed the order'),
+            label: Text(context.translate('proceed_order')),
           ),
         ),
       ],
@@ -311,7 +313,7 @@ class _SearchBarState extends State<_SearchBar> {
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: 'Search Nestle products...',
+                hintText: context.translate('search_nestle_products'),
                 hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSoft,
                   fontSize: widget.isTablet ? 17 : 15,
@@ -368,7 +370,7 @@ class _OfferBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Promotions',
+                  context.translate('promotions'),
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
@@ -381,7 +383,7 @@ class _OfferBanner extends StatelessWidget {
                   builder: (context, state) {
                     final String subtitle;
                     if (state is PromotionLoading) {
-                      subtitle = 'Fetching deals...';
+                      subtitle = context.translate('fetching_deals');
                     } else if (state is PromotionError) {
                       subtitle = 'Deals unavailable right now.';
                     } else if (state is PromotionLoaded &&
@@ -391,7 +393,7 @@ class _OfferBanner extends StatelessWidget {
                         state.territoryId.trim().isEmpty) {
                       subtitle = 'Syncing your territory...';
                     } else {
-                      subtitle = 'No active deals right now.';
+                      subtitle = context.translate('no_active_deals');
                     }
                     return Text(
                       subtitle,
@@ -427,7 +429,7 @@ class _OfferBanner extends StatelessWidget {
               foregroundColor: Colors.white,
               side: BorderSide(color: Colors.white.withAlpha(180)),
             ),
-            child: const Text('View Deals'),
+            child: Text(context.translate('view_deals')),
           ),
         ],
       ),
@@ -461,7 +463,7 @@ class _ProductSection extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: Text(
-                'Nestle Products',
+                context.translate('nestle_products'),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.black87,
                   fontWeight: FontWeight.w700,
@@ -469,7 +471,7 @@ class _ProductSection extends StatelessWidget {
                 ),
               ),
             ),
-            TextButton(onPressed: onSeeAll, child: const Text('See all')),
+            TextButton(onPressed: onSeeAll, child: Text(context.translate('see_all'))),
           ],
         ),
         if (controller.catalogError != null)
@@ -813,7 +815,7 @@ class _AnimatedAddToCartButtonState extends State<_AnimatedAddToCartButton> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Add to Cart',
+                  context.translate('add_to_cart'),
                   style: widget.labelStyle?.copyWith(color: Colors.white),
                 ),
               ],
